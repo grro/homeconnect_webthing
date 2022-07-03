@@ -1,6 +1,6 @@
 from string import Template
 from homeconnect_webthing.app import App
-from homeconnect_webthing.homeconnect_webthing import run_server
+from homeconnect_webthing.hc_webthing import run_server
 
 PACKAGENAME = 'homeconnect_webthing'
 ENTRY_POINT = "homeconnect"
