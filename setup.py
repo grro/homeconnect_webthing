@@ -35,7 +35,7 @@ setup(
         'webthings', 'home automation', 'home connect'
     ],
     install_requires=[
-        'sseclient-py==1.7.2',  'requests>=2.28.1', 'webthing>=0.15.0'
+        'sseclient-py>=1.7.2',  'requests', 'webthing>=0.15.0'
     ],
     classifiers=[
         "Programming Language :: Python :: 3",
