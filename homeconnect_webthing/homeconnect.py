@@ -11,20 +11,24 @@ from homeconnect_webthing.auth import Auth
 
 class Device:
 
-    def __init__(self, uri: str, auth: Auth, name: str, type: str, haid: str):
-        self.uri = uri
-        self.auth = auth
+    def __init__(self, uri: str, auth: Auth, name: str, type: str, haid: str, brand: str, vib: str, enumber: str):
+        self._uri = uri
+        self._auth = auth
         self.name = name
         self.type = type
         self.haid = haid
+        self.brand = brand
+        self.vib = vib
+        self.enumber = enumber
+
         self.listeners = set()
 
     def is_dishwasher(self) -> bool:
         return False
 
     def _query(self, path: str):
-        uri = self.uri + path
-        response = requests.get(uri, headers={"Authorization": "Bearer " + self.auth.access_token})
+        uri = self._uri + path
+        response = requests.get(uri, headers={"Authorization": "Bearer " + self._auth.access_token})
         response.raise_for_status()
         return response.json()['data']
 
@@ -72,7 +76,7 @@ class Dishwasher(Device):
         if self.operation == "BSH.Common.EnumType.OperationState.Run":
             logging.info("dishwasher is already running")
         else:
-            uri = self.uri + "/programs/active"
+            uri = self._uri + "/programs/active"
 
             data = {
                 "data": {
@@ -81,7 +85,7 @@ class Dishwasher(Device):
                 }
             }
             js = json.dumps(data, indent=2)
-            response = requests.put(uri, data=js, headers={"Content-Type": "application/json", "Authorization": "Bearer " + self.auth.access_token})
+            response = requests.put(uri, data=js, headers={"Content-Type": "application/json", "Authorization": "Bearer " + self._auth.access_token})
             response.raise_for_status()
 
     def __str__(self):
@@ -95,11 +99,11 @@ class Dishwasher(Device):
         return self.__str__()
 
 
-def create_device(uri: str, auth: Auth, name: str, type: str, haid: str) -> Device:
+def create_device(uri: str, auth: Auth, name: str, type: str, haid: str, brand: str, vib: str, enumber: str) -> Device:
     if type.lower() == "dishwasher":
-        return Dishwasher(uri, auth, name, type, haid)
+        return Dishwasher(uri, auth, name, type, haid, brand, vib, enumber)
     else:
-        return Device(uri, auth, name, type, haid)
+        return Device(uri, auth, name, type, haid, brand, vib, enumber)
 
 
 class HomeConnect:
@@ -137,7 +141,14 @@ class HomeConnect:
         data = response.json()
         devices = list()
         for homeappliances in data['data']['homeappliances']:
-            device = create_device(HomeConnect.API_URI + "/homeappliances/" + homeappliances['haId'], self.auth, homeappliances['name'], homeappliances['type'], homeappliances['haId'])
+            device = create_device(HomeConnect.API_URI + "/homeappliances/" + homeappliances['haId'],
+                                   self.auth,
+                                   homeappliances['name'],
+                                   homeappliances['type'],
+                                   homeappliances['haId'],
+                                   homeappliances['brand'],
+                                   homeappliances['vib'],
+                                   homeappliances['enumber'])
             self.event_listeners.add(device._on_event)
             devices.append(device)
         return devices

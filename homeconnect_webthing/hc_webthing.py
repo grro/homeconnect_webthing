@@ -1,7 +1,7 @@
 from webthing import (MultipleThings, Property, Thing, Value, WebThingServer)
 import logging
 import tornado.ioloop
-from homeconnect_webthing.hc import HomeConnect, Dishwasher
+from homeconnect_webthing.homeconnect import HomeConnect, Dishwasher
 
 
 class DishwasherThing(Thing):
@@ -23,7 +23,7 @@ class DishwasherThing(Thing):
         self.dishwasher = dishwasher
         dishwasher.on_updates(self.on_updated)
 
-        self.power = Value("")
+        self.power = Value(dishwasher.power)
         self.add_property(
             Property(self,
                      'power',
@@ -35,7 +35,7 @@ class DishwasherThing(Thing):
                          'readOnly': True,
                      }))
 
-        self.operation = Value("")
+        self.operation = Value(dishwasher.operation)
         self.add_property(
             Property(self,
                      'operation',
@@ -47,7 +47,7 @@ class DishwasherThing(Thing):
                          'readOnly': True,
                      }))
 
-        self.remote_start_allowed = Value("")
+        self.remote_start_allowed = Value(dishwasher.remote_start_allowed)
         self.add_property(
             Property(self,
                      'remote_start_allowed',
@@ -59,7 +59,7 @@ class DishwasherThing(Thing):
                          'readOnly': True,
                      }))
 
-        self.door = Value("")
+        self.door = Value(dishwasher.door)
         self.add_property(
             Property(self,
                      'door',
@@ -71,7 +71,7 @@ class DishwasherThing(Thing):
                          'readOnly': True,
                      }))
 
-        self.program = Value("")
+        self.program = Value(dishwasher.program)
         self.add_property(
             Property(self,
                      'program',
@@ -95,6 +95,78 @@ class DishwasherThing(Thing):
                          'readOnly': False,
                      }))
 
+        self.name = Value(dishwasher.name)
+        self.add_property(
+            Property(self,
+                     'name',
+                     self.name,
+                     metadata={
+                         'title': 'Name',
+                         "type": "string",
+                         'description': 'The device name',
+                         'readOnly': True,
+                     }))
+
+        self.type = Value(dishwasher.type)
+        self.add_property(
+            Property(self,
+                     'type',
+                     self.type,
+                     metadata={
+                         'title': 'Type',
+                         "type": "string",
+                         'description': 'The device type',
+                         'readOnly': True,
+                     }))
+
+        self.haid = Value(dishwasher.haid)
+        self.add_property(
+            Property(self,
+                     'haid',
+                     self.haid,
+                     metadata={
+                         'title': 'haid',
+                         "type": "string",
+                         'description': 'The device haid',
+                         'readOnly': True,
+                     }))
+
+        self.brand = Value(dishwasher.brand)
+        self.add_property(
+            Property(self,
+                     'brand',
+                     self.brand,
+                     metadata={
+                         'title': 'Brand',
+                         "type": "string",
+                         'description': 'The device brand',
+                         'readOnly': True,
+                     }))
+
+        self.vib = Value(dishwasher.vib)
+        self.add_property(
+            Property(self,
+                     'vib',
+                     self.vib,
+                     metadata={
+                         'title': 'Vib',
+                         "type": "string",
+                         'description': 'The device vib',
+                         'readOnly': True,
+                     }))
+
+        self.enumber = Value(dishwasher.enumber)
+        self.add_property(
+            Property(self,
+                     'enumber',
+                     self.enumber,
+                     metadata={
+                         'title': 'Enumber',
+                         "type": "string",
+                         'description': 'The device enumber',
+                         'readOnly': True,
+                     }))
+
     def on_updated(self, reason):
         self.ioloop.add_callback(self.__on_updated, reason)
 
@@ -103,8 +175,13 @@ class DishwasherThing(Thing):
         self.door.notify_of_external_update(self.dishwasher.door)
         self.operation.notify_of_external_update(self.dishwasher.operation)
         self.remote_start_allowed.notify_of_external_update(self.dishwasher.remote_start_allowed)
+        self.enumber.notify_of_external_update(self.dishwasher.enumber)
+        self.vib.notify_of_external_update(self.dishwasher.vib)
+        self.brand.notify_of_external_update(self.dishwasher.brand)
+        self.haid.notify_of_external_update(self.dishwasher.haid)
+        self.name.notify_of_external_update(self.dishwasher.name)
+        self.type.notify_of_external_update(self.dishwasher.type)
         self.remote_start.notify_of_external_update(False)
-
 
 
 def run_server(port: int, description: str):

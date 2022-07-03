@@ -130,3 +130,5 @@ dmypy.json
 /.idea/misc.xml
 /.idea/modules.xml
 /.idea/vcs.xml
+/homeconnect_webthing/homeconnect_oauth.txt
+/homeconnect_oauth.txt

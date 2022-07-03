@@ -2,7 +2,7 @@ from setuptools import setup
 from os import path
 
 PACKAGENAME = 'homeconnect_webthing'
-ENTRY_POINT = "homeconnect"
+ENTRY_POINT = "hc"
 DESCRIPTION = "Homeconnect WebThing adapter"
 
 
