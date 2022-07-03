@@ -5,7 +5,7 @@ import json
 from time import sleep
 from threading import Thread
 from typing import List, Optional
-from auth import Auth
+from homeconnect_webthing.auth import Auth
 
 
 

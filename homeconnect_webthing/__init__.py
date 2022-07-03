@@ -2,10 +2,10 @@ from string import Template
 from homeconnect_webthing.app import App
 from homeconnect_webthing.homeconnect_webthing import run_server
 
-
 PACKAGENAME = 'homeconnect_webthing'
 ENTRY_POINT = "homeconnect"
 DESCRIPTION = "Homeconnect WebThing adapter"
+
 
 UNIT_TEMPLATE = Template('''
 [Unit]
@@ -14,7 +14,7 @@ After=syslog.target
 
 [Service]
 Type=simple
-ExecStart=$entrypoint --command listen --verbose $verbose --port $port
+ExecStart=$entrypoipython nt --command listen --verbose $verbose --port $port
 SyslogIdentifier=$packagename
 StandardOutput=syslog
 StandardError=syslog
@@ -28,7 +28,6 @@ WantedBy=multi-user.target
 
 
 class HomeConnectApp(App):
-
 
     def do_process_command(self, command:str, port: int, verbose: bool, args) -> bool:
         if command == 'listen':

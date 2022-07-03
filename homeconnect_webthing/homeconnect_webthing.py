@@ -1,7 +1,7 @@
 from webthing import (MultipleThings, Property, Thing, Value, WebThingServer)
 import logging
 import tornado.ioloop
-from homeconnect import HomeConnect, Dishwasher
+from homeconnect_webthing.homeconnect import HomeConnect, Dishwasher
 
 
 class DishwasherThing(Thing):
