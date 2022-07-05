@@ -1,56 +1,59 @@
 from os import system, remove
 from os import listdir
-from abc import ABC
+from abc import ABC, abstractmethod
 import pathlib
 import logging
 import subprocess
 import argparse
+from dataclasses import dataclass
+from importlib.metadata import metadata, entry_points
+from typing import List, Any
 
 
 
-class App(ABC):
+@dataclass
+class Argument:
+    name: str
+    dt: type
+    description: str
+    default_value: Any = None
+    required: bool = False
 
-    def __init__(self, packagename: str, entrypoint: str, description: str):
+class AbstractApp(ABC):
+
+    def __init__(self, packagename: str, default_port: int = 8644, arguments: List[Argument] = []):
         self.unit = Unit(packagename)
         self.packagename = packagename
-        self.entrypoint = entrypoint
-        self.description = description
+        self.default_port = default_port
+        self.arguments = arguments
+        md = metadata(packagename)
+        self.description = md.json.get('description', "")
+        for script in entry_points(group='console_scripts'):
+            if script.value == packagename + '.__main__:main':
+                self.entrypoint = script.name
+        print(self.description)
 
-    def do_add_argument(self, parser):
-        pass
-
-    def do_process_command(self, command:str, port: int, verbose: bool, args) -> bool:
-        return False
-
-    def do_additional_listen_example_params(self):
-        return ""
-
-    def print_usage_info(self, port: str, msg: str=None):
-        if msg is not None:
-            print(msg + "\n")
-
-        if port is None:
-            port = "9766"
-
+    def print_usage_info(self, port: int) -> bool:
         print("for command options usage")
         print(" sudo " + self.entrypoint + " --help")
         print("example commands")
-        print(" sudo " + self.entrypoint + " --command register --port " + port + " " + self.do_additional_listen_example_params())
-        print(" sudo " + self.entrypoint + " --command listen --port " + port + " " + self.do_additional_listen_example_params())
+        print(" sudo " + self.entrypoint + " --command register --port " + str(port) + " " + " ".join(["--" + argument.name + " " + str(argument.default_value) for argument in self.arguments]))
+        print(" sudo " + self.entrypoint + " --command listen --port " + str(port) + " " +  " ".join(["--" + argument.name + " " + str(argument.default_value) for argument in self.arguments]))
         if len(self.unit.list_installed()) > 0:
             print("example commands for registered services")
             for service_info in self.unit.list_installed():
                 port = service_info[1]
                 print(" sudo " + self.entrypoint + " --command deregister --port " + port)
                 print(" sudo " + self.entrypoint + " --command log --port " + port)
-
+        return True
 
     def handle_command(self):
         parser = argparse.ArgumentParser(description=self.description)
         parser.add_argument('--command', metavar='command', required=False, type=str, help='the command. Supported commands are: listen (run the webthing service), register (register and starts the webthing service as a systemd unit, deregister (deregisters the systemd unit), log (prints the log)')
         parser.add_argument('--port', metavar='port', required=False, type=int, help='the port of the webthing serivce')
         parser.add_argument('--verbose', metavar='verbose', required=False, type=bool, default=False, help='activates verbose output')
-        self.do_add_argument(parser)
+        for argument in self.arguments:
+            parser.add_argument('--' + argument.name, metavar=argument.name, required=argument.required, type=argument.dt, default=argument.default_value, help=argument.description)
         args = parser.parse_args()
 
         if args.verbose:
@@ -59,23 +62,16 @@ class App(ABC):
             log_level=logging.INFO
         logging.basicConfig(format='%(asctime)s %(name)-20s: %(levelname)-8s %(message)s', level=log_level, datefmt='%Y-%m-%d %H:%M:%S')
 
+        port = self.default_port if args.port is None else args.port
+        handled = False
         if args.command is None:
-            self.print_usage_info(str(args.port))
-        elif args.command == 'deregister':
-            if args.port is None:
-                self.print_usage_info(str(args.port), "--port is mandatory for deregister command")
-            else:
-                self.unit.deregister(int(args.port))
-        elif args.command == 'log':
-            if args.port is None:
-                self.print_usage_info(str(args.port), "--port is mandatory for log command")
-            else:
-                self.unit.printlog(int(args.port))
-        else:
-            if args.port is not None:
-                if self.do_process_command(args.command, args.port, args.verbose, args):
-                    return
-            self.print_usage_info(str(args.port))
+            handled = self.print_usage_info(port)
+        elif args.command == 'listen':
+            handled = self.do_listen(int(port), args.verbose, args)
+
+    @abstractmethod
+    def do_listen(self, port: int, verbose: bool, args) -> bool:
+        return False
 
 
 

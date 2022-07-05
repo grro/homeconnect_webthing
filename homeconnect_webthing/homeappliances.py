@@ -40,8 +40,18 @@ class Device:
     def on_updates(self, listener):
         self.listeners.add(listener)
 
+    @property
+    def __fingerprint(self):
+        return self.type + ":" + self.brand + ":" + self.vib + ":" + self.enumber + ":" + self.haid
+
+    def __lt__(self, other):
+        return self.__fingerprint < other.__fingerprint
+
+    def __eq__(self, other):
+        return self.__fingerprint == other.__fingerprint
+
     def __str__(self):
-        return self.name + " (" + self.haid + ")"
+            return self.name + " (" + self.haid + ")"
 
     def __repr__(self):
         return self.__str__()
@@ -134,7 +144,7 @@ class HomeConnect:
                             listener(event)
             except Exception as e:
                 logging.warning("Error occurred by opening sse socket to " + uri, e)
-                sleep(5)
+                sleep(10)
 
     def devices(self) -> List[Device]:
         response = requests.get(HomeConnect.API_URI + "/homeappliances", headers={"Authorization": "Bearer " + self.auth.access_token})

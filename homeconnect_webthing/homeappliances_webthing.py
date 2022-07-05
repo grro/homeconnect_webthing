@@ -1,7 +1,7 @@
 from webthing import (MultipleThings, Property, Thing, Value, WebThingServer)
 import logging
 import tornado.ioloop
-from homeconnect_webthing.homeconnect import HomeConnect, Dishwasher
+from homeconnect_webthing.homeappliances import HomeConnect, Dishwasher
 
 
 class DishwasherThing(Thing):
@@ -34,7 +34,6 @@ class DishwasherThing(Thing):
                          'description': 'The power state. See https://api-docs.home-connect.com/settings?#power-state',
                          'readOnly': True,
                      }))
-
         self.operation = Value(dishwasher.operation)
         self.add_property(
             Property(self,
@@ -56,6 +55,18 @@ class DishwasherThing(Thing):
                          'title': 'Remote Start Allowed State',
                          "type": "boolean",
                          'description': 'Remote Start Allowance State. See https://api-docs.home-connect.com/states?#remote-start-allowance-state',
+                         'readOnly': True,
+                     }))
+
+        self.start_date = Value("test")
+        self.add_property(
+            Property(self,
+                     'start_date',
+                     self.start_date,
+                     metadata={
+                         'title': 'Start date',
+                         "type": "string",
+                         'description': 'Th start date',
                          'readOnly': True,
                      }))
 
@@ -95,6 +106,7 @@ class DishwasherThing(Thing):
                          'readOnly': False,
                      }))
 
+
         self.name = Value(dishwasher.name)
         self.add_property(
             Property(self,
@@ -107,17 +119,18 @@ class DishwasherThing(Thing):
                          'readOnly': True,
                      }))
 
-        self.type = Value(dishwasher.type)
+        self.typ = Value(dishwasher.type)
         self.add_property(
             Property(self,
                      'type',
-                     self.type,
+                     self.typ,
                      metadata={
                          'title': 'Type',
                          "type": "string",
                          'description': 'The device type',
                          'readOnly': True,
                      }))
+
 
         self.haid = Value(dishwasher.haid)
         self.add_property(
@@ -166,6 +179,8 @@ class DishwasherThing(Thing):
                          'description': 'The device enumber',
                          'readOnly': True,
                      }))
+ 
+
 
     def on_updated(self, reason):
         self.ioloop.add_callback(self.__on_updated, reason)
@@ -189,11 +204,13 @@ def run_server(port: int, description: str):
     for device in HomeConnect().devices():
         if device.is_dishwasher():
             homeappliances.append(DishwasherThing(description, device))
+    homeappliances.sort()
+    logging.info(str(len(homeappliances)) + " homeappliances found: " + ", ".join([homeappliance.dishwasher.name + "/" + homeappliance.dishwasher.enumber for homeappliance in homeappliances]))
     server = WebThingServer(MultipleThings(homeappliances, 'homeappliances'), port=port, disable_host_validation=True)
     try:
-        logging.info('starting the server')
+        logging.info('starting webthing server')
         server.start()
     except KeyboardInterrupt:
-        logging.info('stopping the server')
+        logging.info('stopping webthing server')
         server.stop()
         logging.info('done')
