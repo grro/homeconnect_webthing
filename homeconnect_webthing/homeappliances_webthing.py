@@ -243,7 +243,7 @@ class DishwasherThing(Thing):
         self.start_date.notify_of_external_update(self.dishwasher.start_date)
 
 
-def run_server(port: int, description: str, filename: str):
+def run_server( description: str, port: int, filename: str):
     homeappliances = []
     for device in HomeConnect(filename).devices():
         if device.is_dishwasher():

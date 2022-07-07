@@ -4,9 +4,9 @@ from homeconnect_webthing.homeappliances_webthing import run_server
 
 
 def main():
-    App.run(run_function=lambda args, desc: run_server(args['port'], description=desc, filename=args['authfile']),
+    App.run(run_function=lambda args, desc: run_server(description=desc, port=args['port'], filename=args['authfile']),
             packagename="homeconnect_webthing",
-            arg_specs=[ArgumentSpec("authfile", str, "the absolute auth filename", True)])
+            arg_specs=[ArgumentSpec("authfile", str, "the absolute auth filename such as /root/homeconnect_oauth.txt", True)])
 
 
 if __name__ == '__main__':

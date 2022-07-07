@@ -39,11 +39,12 @@ class Unit:
             status = subprocess.check_output("sudo systemctl is-active " + service, shell=True, stderr=subprocess.STDOUT)
             if status.decode('ascii').strip() == 'active':
                 print(service + " is running (print log by calling " + "sudo journalctl -n 20 -u " + service + ")")
+                print("try sudo journalctl -n 20 -u " + service)
                 return
         except subprocess.CalledProcessError as e:
             pass
         print("Warning: " + service + " is not running")
-        system("sudo journalctl -n 20 -u " + service)
+        system("sudo journalctl -n 50 -u " + service)
 
     def register(self, entrypoint: str, port: int, args: Dict[str, Any]):
         service = self.servicename(port)
@@ -165,6 +166,8 @@ class App:
         logging.basicConfig(format='%(asctime)s %(name)-20s: %(levelname)-8s %(message)s', level=log_level, datefmt='%Y-%m-%d %H:%M:%S')
 
         handled = False
+        if args.get('command', None) is None:
+            print("parameter --command has to be set\n")
         if args['command'] == 'listen':
             if self.check_params(args):
                 handled = self.do_listen(args['port'], args)
@@ -174,7 +177,7 @@ class App:
         elif args['command'] == 'deregister':
             handled = self.do_deregister(args['port'])
         else:
-            print("unsupported command " + args['command'])
+            print("unsupported command " + args['command'] + "\n")
         if not handled:
             self.do_print_usage_info(args)
 
@@ -182,8 +185,8 @@ class App:
         print("for command options usage")
         print(" sudo " + self.entrypoint + " --help")
         print("example commands")
-        print(" sudo " + self.entrypoint + " --command register --port " + str(args['port']) + " " + " ".join(["--" + argument.name + " " + str(argument.default_value) for argument in self.arg_specs]))
-        print(" sudo " + self.entrypoint + " --command listen --port " + str(args['port']) + " " +  " ".join(["--" + argument.name + " " + str(argument.default_value) for argument in self.arg_specs]))
+        print(" sudo " + self.entrypoint + " --command register --port " + str(args['port']) + " " + " ".join(["--" + argument.name + " " + str(argument.default_value) if argument.default_value is not None else "..." for argument in self.arg_specs]))
+        print(" sudo " + self.entrypoint + " --command listen --port " + str(args['port']) + " " +  " ".join(["--" + argument.name + " " + str(argument.default_value) if argument.default_value is not None else "..." for argument in self.arg_specs]))
         if len(self.unit.list_installed()) > 0:
             print("example commands for registered services")
             for service_info in self.unit.list_installed():
