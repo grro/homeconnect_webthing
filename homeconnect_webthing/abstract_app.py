@@ -120,14 +120,14 @@ class ArgumentSpec:
 
 class AbstractApp(ABC):
 
-    def __init__(self, packagename: str, arg_specs: List[ArgumentSpec] = [], default_port: int = 8644):
+    def __init__(self, packagename: str, arg_specs: List[ArgumentSpec] = list(), default_port: int = 8644):
         self.unit = Unit(packagename)
         self.packagename = packagename
         self.arg_specs = arg_specs
         self.default_port = default_port
         md = metadata(packagename)
-        self.description = md.json.get('description', "")
-        for script in entry_points(group='console_scripts'):
+        self.description = md.get('description', "")
+        for script in entry_points()['console_scripts']:
             if script.value == packagename + '.__main__:main':
                 self.entrypoint = script.name
         print(self.description)
@@ -145,20 +145,6 @@ class AbstractApp(ABC):
             arguments[arg_spec.name] = arg_spec.resolve(args)
         return arguments
 
-    def print_usage_info(self, args: Dict[str, Any]) -> bool:
-        print("for command options usage")
-        print(" sudo " + self.entrypoint + " --help")
-        print("example commands")
-        print(" sudo " + self.entrypoint + " --command register --port " + str(args['port']) + " " + " ".join(["--" + argument.name + " " + str(argument.default_value) for argument in self.arg_specs]))
-        print(" sudo " + self.entrypoint + " --command listen --port " + str(args['port']) + " " +  " ".join(["--" + argument.name + " " + str(argument.default_value) for argument in self.arg_specs]))
-        if len(self.unit.list_installed()) > 0:
-            print("example commands for registered services")
-            for service_info in self.unit.list_installed():
-                port = service_info[1]
-                print(" sudo " + self.entrypoint + " --command deregister --port " + port)
-                print(" sudo " + self.entrypoint + " --command log --port " + port)
-        return True
-
     def handle_command(self):
         args = self.parse_arguments()
         if args['verbose']:
@@ -172,10 +158,25 @@ class AbstractApp(ABC):
             handled = self.do_listen(args)
         elif args['command'] == 'register':
             handled = self.do_register(args)
+        elif args['command'] == 'deregister':
+            handled = self.do_register(args)
         if not handled:
-            self.print_usage_info(args)
+            self.do_print_usage_info(args)
 
-    @abstractmethod
+    def do_print_usage_info(self, args: Dict[str, Any]) -> bool:
+        print("for command options usage")
+        print(" sudo " + self.entrypoint + " --help")
+        print("example commands")
+        print(" sudo " + self.entrypoint + " --command register --port " + str(args['port']) + " " + " ".join(["--" + argument.name + " " + str(argument.default_value) for argument in self.arg_specs]))
+        print(" sudo " + self.entrypoint + " --command listen --port " + str(args['port']) + " " +  " ".join(["--" + argument.name + " " + str(argument.default_value) for argument in self.arg_specs]))
+        if len(self.unit.list_installed()) > 0:
+            print("example commands for registered services")
+            for service_info in self.unit.list_installed():
+                port = service_info[1]
+                print(" sudo " + self.entrypoint + " --command deregister --port " + port)
+                print(" sudo " + self.entrypoint + " --command log --port " + port)
+        return True
+
     def do_listen(self, args: Dict[str, Any]) -> bool:
         return False
 
@@ -184,4 +185,8 @@ class AbstractApp(ABC):
         Unit(self.packagename).register(self.entrypoint, args)
         return True
 
+    def do_deregister(self, args: Dict[str, Any]) -> bool:
+        print('deregister ' + str(args['port']))
+        Unit(self.packagename).deregister(args)
+        return True
 
