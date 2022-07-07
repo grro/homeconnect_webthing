@@ -60,7 +60,7 @@ class Auth:
 
     @staticmethod
     def load(filename : str = DEFAULT_FILENAME) -> Optional:
-        if path.isfile(filename):
+        if filename is not None and path.isfile(filename):
             logging.info("loading secret file " + path.abspath(filename))
             with open(filename, "r") as file:
                 refresh_line = file.readline()

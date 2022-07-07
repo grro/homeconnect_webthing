@@ -74,7 +74,6 @@ class Unit:
             remove(unit_file_fullname)
         except Exception as e:
             pass
-
     def printlog(self, args: Dict[str, Any]):
         service = self.servicename(args['port'])
         system("sudo journalctl -f -u " + service)
