@@ -233,7 +233,7 @@ class HomeConnect:
             refresh_token = input("Please enter refresh token: ").strip()
             client_secret = input("Please enter client secret: ").strip()
             self.auth = Auth(refresh_token, client_secret)
-            self.auth.store()
+            self.auth.store(filename)
         Thread(target=self.__listening_for_events, daemon=True).start()
 
     def __listening_for_events(self):
