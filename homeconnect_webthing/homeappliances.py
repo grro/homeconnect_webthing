@@ -20,6 +20,9 @@ class EventListener(ABC):
     def on_notify_event(self, event):
         pass
 
+    def on_status_event(self, event):
+        pass
+
 
 class Device(EventListener):
 
@@ -92,6 +95,12 @@ class Dishwasher(Device):
         self._value_changed_listeners.add(value_changed_listener)
 
     def on_notify_event(self, event):
+        self.on__value_changed_event(event)
+
+    def on_status_event(self, event):
+        self.on__value_changed_event(event)
+
+    def on__value_changed_event(self, event):
         if event.id == self.haid:
             try:
                 logging.info("event received: " + str(event))
@@ -248,6 +257,9 @@ class HomeConnect:
                     elif event.event == "KEEP-ALIVE":
                         for notify_listener in self.notify_listeners:
                             notify_listener.on_keep_alive_event(event)
+                    elif event.event == "STATUS":
+                        for notify_listener in self.notify_listeners:
+                            notify_listener.on_status_event(event)
                     else:
                         print(event)
             except Exception as e:

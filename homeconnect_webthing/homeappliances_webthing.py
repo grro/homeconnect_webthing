@@ -233,7 +233,7 @@ class DishwasherThing(Thing):
         self.selected_program.notify_of_external_update(self.dishwasher.program_selected)
         self.program_vario_speed_plus.notify_of_external_update(self.dishwasher.program_vario_speed_plus)
         self.program_hygiene_plus.notify_of_external_update(self.dishwasher.program_hygiene_plus)
-        self.program_extra_try.notify_of_external_update(self.dishwasher.pprogram_extra_try)
+        self.program_extra_try.notify_of_external_update(self.dishwasher.program_extra_try)
         self.program_progress.notify_of_external_update(self.dishwasher.program_progress)
         self.vib.notify_of_external_update(self.dishwasher.vib)
         self.brand.notify_of_external_update(self.dishwasher.brand)
@@ -251,8 +251,8 @@ def run_server(port: int, description: str):
     homeappliances.sort()
     logging.info(str(len(homeappliances)) + " homeappliances found: " + ", ".join([homeappliance.dishwasher.name + "/" + homeappliance.dishwasher.enumber for homeappliance in homeappliances]))
     server = WebThingServer(MultipleThings(homeappliances, 'homeappliances'), port=port, disable_host_validation=True)
+    logging.info('running webthing server http://localhost:' + str(port))
     try:
-        logging.info('starting webthing server on port ' + str(port))
         server.start()
     except KeyboardInterrupt:
         logging.info('stopping webthing server')
