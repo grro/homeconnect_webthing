@@ -1,6 +1,5 @@
 from os import system, remove
 from os import listdir
-from abc import ABC, abstractmethod
 import pathlib
 import logging
 import subprocess
@@ -118,17 +117,22 @@ class ArgumentSpec:
         return vars(args)[self.name]
 
 
-class AbstractApp(ABC):
+class App:
 
-    def __init__(self, packagename: str, arg_specs: List[ArgumentSpec] = list(), default_port: int = 8644):
+    @staticmethod
+    def run(run_function, packagename: str, arg_specs: List[ArgumentSpec] = list(), default_port: int = 8644):
+        App(run_function, packagename, arg_specs, default_port).handle_command()
+
+    def __init__(self,run_function, packagename: str, arg_specs: List[ArgumentSpec], default_port: int):
         self.unit = Unit(packagename)
+        self.run_function = run_function
         self.packagename = packagename
         self.arg_specs = arg_specs
         self.default_port = default_port
         md = metadata(packagename)
         self.description = md.get('description', "")
         for script in entry_points()['console_scripts']:
-            if script.value == packagename + '.__main__:main':
+            if script.value == packagename + ':main':
                 self.entrypoint = script.name
         print(self.description)
 
@@ -178,7 +182,9 @@ class AbstractApp(ABC):
         return True
 
     def do_listen(self, args: Dict[str, Any]) -> bool:
-        return False
+        print('starting webthing server on port ' + str(args['port']))
+        self.run_function(args, self.description)
+        return True
 
     def do_register(self, args: Dict[str, Any]) -> bool:
         print('register and starting webthing server on port ' + str(args['port']))
