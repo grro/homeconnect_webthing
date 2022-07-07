@@ -149,6 +149,13 @@ class App:
             arguments[arg_spec.name] = arg_spec.resolve(args)
         return arguments
 
+    def check_params(self, args:  Dict[str, Any]) -> bool:
+        for spec in self.arg_specs:
+            if spec.required and args.get(spec.name, None) is None:
+                print("parameter --" + spec.name + " has to be set (" + spec.description + ")\n")
+                return False
+        return True
+
     def handle_command(self):
         args = self.parse_arguments()
         if args['verbose']:
@@ -157,19 +164,17 @@ class App:
             log_level=logging.INFO
         logging.basicConfig(format='%(asctime)s %(name)-20s: %(levelname)-8s %(message)s', level=log_level, datefmt='%Y-%m-%d %H:%M:%S')
 
-        for spec in self.arg_specs:
-            if spec.required and args.get(spec.name, None) is None:
-                print("parameter " + spec.name + " has to be set (" + spec.description + ")\n")
-            self.do_print_usage_info(args)
-            return
-
         handled = False
         if args['command'] == 'listen':
-            handled = self.do_listen(args)
+            if self.check_params(args):
+                handled = self.do_listen(args)
         elif args['command'] == 'register':
-            handled = self.do_register(args)
+            if self.check_params(args):
+                handled = self.do_register(args)
         elif args['command'] == 'deregister':
             handled = self.do_deregister(args)
+        else:
+            print("unsupported command " + args['command'])
         if not handled:
             self.do_print_usage_info(args)
 

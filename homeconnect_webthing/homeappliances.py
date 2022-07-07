@@ -227,8 +227,7 @@ class HomeConnect:
     API_URI = "https://api.home-connect.com/api"
 
     def __init__(self, filename: str):
-        self.notify_listener
-        s: List[EventListener] = list()
+        self.notify_listeners: List[EventListener] = list()
         self.auth = Auth.load(filename)
         if self.auth == None:
             refresh_token = input("Please enter refresh token: ").strip()
