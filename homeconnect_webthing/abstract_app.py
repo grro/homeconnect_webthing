@@ -10,7 +10,6 @@ from importlib.metadata import metadata, entry_points
 from typing import List, Any
 
 
-
 @dataclass
 class Argument:
     name: str

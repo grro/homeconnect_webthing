@@ -72,5 +72,8 @@ class Auth:
             logging.info("secret file " + path.abspath(filename) + " does not exist")
             return None
 
+    def __str__(self):
+        return "refresh_token: " + self.__refresh_token + "\n" + "client_secret: " + self.__client_secret
+
     def __repr__(self):
         return self.__str__()

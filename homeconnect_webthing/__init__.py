@@ -9,7 +9,8 @@ class MyApp(AbstractApp):
 
 
 def main():
-    MyApp("homeconnect_webthing", 9080).handle_command()
+    MyApp("homeconnect_webthing").handle_command()
+
 
 if __name__ == '__main__':
     main()
