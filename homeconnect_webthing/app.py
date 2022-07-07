@@ -45,8 +45,8 @@ class Unit:
         print("Warning: " + service + " is not running")
         system("sudo journalctl -n 20 -u " + service)
 
-    def register(self, entrypoint: str, args: Dict[str, Any]):
-        service = self.servicename(args['port'])
+    def register(self, entrypoint: str, port: int, args: Dict[str, Any]):
+        service = self.servicename(port)
         replacements = {'packagename': self.packagename, 'entrypoint': entrypoint}
         unit = Unit.UNIT_TEMPLATE
         params = []
@@ -64,8 +64,8 @@ class Unit:
         system("sudo systemctl restart " + service)
         self.__print_status(service)
 
-    def deregister(self, args: Dict[str, Any]):
-        service = self.servicename(args['port'])
+    def deregister(self, port: int):
+        service = self.servicename(port)
         unit_file_fullname = str(pathlib.Path("/", "etc", "systemd", "system", service))
         system("sudo systemctl stop " + service)
         system("sudo systemctl disable " + service)
@@ -167,12 +167,12 @@ class App:
         handled = False
         if args['command'] == 'listen':
             if self.check_params(args):
-                handled = self.do_listen(args)
+                handled = self.do_listen(args['port'], args)
         elif args['command'] == 'register':
             if self.check_params(args):
-                handled = self.do_register(args)
+                handled = self.do_register(args['port'],args)
         elif args['command'] == 'deregister':
-            handled = self.do_deregister(args)
+            handled = self.do_deregister(args['port'])
         else:
             print("unsupported command " + args['command'])
         if not handled:
@@ -192,18 +192,18 @@ class App:
                 print(" sudo " + self.entrypoint + " --command log --port " + port)
         return True
 
-    def do_listen(self, args: Dict[str, Any]) -> bool:
-        print('starting webthing server on port ' + str(args['port']))
+    def do_listen(self, port: int, args: Dict[str, Any]) -> bool:
+        print('starting webthing server on port ' + str(port))
         self.run_function(args, self.description)
         return True
 
-    def do_register(self, args: Dict[str, Any]) -> bool:
-        print('register and starting webthing server on port ' + str(args['port']))
-        Unit(self.packagename).register(self.entrypoint, args)
+    def do_register(self, port: int, args: Dict[str, Any]) -> bool:
+        print('register and starting webthing server on port ' + str(port))
+        Unit(self.packagename).register(self.entrypoint, port, args)
         return True
 
-    def do_deregister(self, args: Dict[str, Any]) -> bool:
-        print('deregister ' + str(args['port']))
-        Unit(self.packagename).deregister(args)
+    def do_deregister(self, port: int) -> bool:
+        print('deregister ' + str(port))
+        Unit(self.packagename).deregister(port)
         return True
 
