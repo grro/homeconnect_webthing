@@ -205,8 +205,8 @@ class DishwasherThing(Thing):
                      metadata={
                          'title': 'Start date',
                          "type": "string",
-                         'description': 'Th start date',
-                         'readOnly': True,
+                         'description': 'The start date',
+                         'readOnly': False,
                      }))
 
         self.program_progress = Value(dishwasher.program_progress)
