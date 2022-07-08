@@ -181,8 +181,7 @@ class Dishwasher(Device):
         else:
             return ""
 
-    @start_date.setter
-    def start_date(self, dt: str):
+    def set_start_date(self, dt: str):
         if self.operation == "BSH.Common.EnumType.OperationState.Run":
             logging.info("dishwasher is already running")
         else:

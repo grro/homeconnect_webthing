@@ -197,7 +197,7 @@ class DishwasherThing(Thing):
                          'readOnly': True,
                      }))
 
-        self.start_date = Value(dishwasher.start_date, dishwasher.start_date)
+        self.start_date = Value(dishwasher.start_date, dishwasher.set_start_date)
         self.add_property(
             Property(self,
                      'program_start_date',
