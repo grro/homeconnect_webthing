@@ -77,7 +77,7 @@ class Dishwasher(Device):
         self.__door = ""
         self.__program_selected = ""
         self.remote_start_allowed = False
-        self.__program_start_in_relative_sec = ""
+        self.__program_start_in_relative_sec = 0
         self.__program_remaining_time = ""
         self.__program_progress = 0
         self.__program_remote_control_active = ""
@@ -120,6 +120,8 @@ class Dishwasher(Device):
                 self.remote_start_allowed = record['value']
             elif record['key'] == 'BSH.Common.Setting.PowerState':
                 self.__power = record['value']
+            elif record['key'] == 'BSH.Common.Root.SelectedProgram':
+                self.__program_selected = record['value']
             elif record['key'] == 'BSH.Common.Option.StartInRelative':
                 self.__program_start_in_relative_sec = record['value']
             elif record['key'] == 'BSH.Common.Option.RemainingProgramTime':
