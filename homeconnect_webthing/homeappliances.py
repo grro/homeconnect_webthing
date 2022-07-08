@@ -79,7 +79,7 @@ class Dishwasher(Device):
         self.remote_start_allowed = False
         self.__program_start_in_relative_sec = ""
         self.__program_remaining_time = ""
-        self.program_progress = 100
+        self.__program_progress = 0
         self.__program_remote_control_active = ""
         self.program_extra_try = ""
         self.program_hygiene_plus = ""
@@ -125,7 +125,7 @@ class Dishwasher(Device):
             elif record['key'] == 'BSH.Common.Option.RemainingProgramTime':
                 self.__program_remaining_time = record['value']
             elif record['key'] == 'BSH.Common.Option.ProgramProgress':
-                self.program_progress = record['value']
+                self.__program_progress = record['value']
             elif record['key'] == 'BSH.Common.Status.RemoteControlActive':
                 self.__program_remote_control_active = record['value']
             elif record['key'] == 'Dishcare.Dishwasher.Option.ExtraDry':
@@ -166,6 +166,13 @@ class Dishwasher(Device):
     @property
     def operation(self):
         return self.__operation[self.__operation.rindex('.')+1:]
+
+    @property
+    def program_progress(self):
+        if self.operation.lower() == 'run':
+            return self.__program_progress
+        else:
+            return 0
 
     @property
     def program_selected(self):
