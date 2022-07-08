@@ -79,7 +79,7 @@ class Dishwasher(Device):
         self.remote_start_allowed = False
         self.__program_start_in_relative_sec = ""
         self.__program_remaining_time = ""
-        self.program_progress = None
+        self.program_progress = 100
         self.__program_remote_control_active = ""
         self.program_extra_try = ""
         self.program_hygiene_plus = ""
@@ -179,7 +179,7 @@ class Dishwasher(Device):
         if start_date > datetime.now():
             return start_date.strftime("%Y-%m-%dT%H:%M")
         else:
-            return None
+            return ""
 
     @start_date.setter
     def start_date(self, dt: str):
