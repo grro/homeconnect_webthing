@@ -190,10 +190,10 @@ class Dishwasher(Device):
             uri = self._uri + "/programs/active"
             data = {
                 "data": {
-                    "key": self.program_selected,
+                    "key": self.__program_selected,
                     "options": [ {
                                     "key": "BSH.Common.Option.StartInRelative",
-                                    "value": str(remaining_secs_to_wait),
+                                    "value": remaining_secs_to_wait,
                                     "unit": "seconds"
                                 } ]
                 }

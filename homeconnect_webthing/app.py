@@ -38,7 +38,7 @@ class Unit:
         try:
             status = subprocess.check_output("sudo systemctl is-active " + service, shell=True, stderr=subprocess.STDOUT)
             if status.decode('ascii').strip() == 'active':
-                print(service + " is running (print log by calling " + "sudo journalctl -n 20 -u " + service + ")")
+                print(service + " is running")
                 print("try sudo journalctl -f -n 50 -u " + service)
                 return
         except subprocess.CalledProcessError as e:
