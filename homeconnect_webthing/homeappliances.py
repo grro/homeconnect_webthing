@@ -39,13 +39,28 @@ class Device(EventListener):
     def is_dishwasher(self) -> bool:
         return False
 
+    def __is_success(self, status_code: int) -> bool:
+        return status_code >= 200 and status_code <= 299
+
     def _perform_get(self, path:str) -> Dict[str, Any]:
         uri = self._uri + path
         logging.info("query GET " + uri)
         response = requests.get(uri, headers={"Authorization": "Bearer " + self._auth.access_token})
-        response.raise_for_status()
-        data = response.json()
-        return data
+        if self.__is_success(response.status_code):
+            return response.json()
+        else:
+            logging.warning("error occurred by calling GET " + uri)
+            logging.warning("got " + str(response.status_code) + " " + response.text)
+            raise Exception("error occurred by calling GET " + uri + " Got " + str(response))
+
+    def _perform_put(self, path:str, data: str) :
+        uri = self._uri + path
+        logging.info("query PUT " + uri)
+        response = requests.put(uri, data=data, headers={"Content-Type": "application/json", "Authorization": "Bearer " + self._auth.access_token})
+        if not self.__is_success(response.status_code):
+            logging.warning("error occurred by calling POST " + uri + " " + data)
+            logging.warning("got " + response.text)
+            raise Exception("error occurred by calling GET " + uri + " Got " + str(response))
 
     @property
     def __fingerprint(self) -> str:
@@ -188,12 +203,24 @@ class Dishwasher(Device):
         else:
             return ""
 
+    def to_period(self, future_date: str):
+        remaining_secs_to_wait = (datetime.fromisoformat(future_date) - datetime.now()).seconds
+        if remaining_secs_to_wait > (60 * 60):
+            return int(remaining_secs_to_wait / 60), "minutes"
+        else:
+            return remaining_secs_to_wait, "seconds"
+
+
     def set_start_date(self, dt: str):
         if self.operation == "BSH.Common.EnumType.OperationState.Run":
             logging.info("dishwasher is already running")
         else:
-            remaining_secs_to_wait = (datetime.fromisoformat(dt) - datetime.now()).seconds
-            uri = self._uri + "/programs/active"
+            dz = datetime.now()
+            delay = (datetime.fromisoformat(dt) - datetime.now())
+            remaining_secs_to_wait = int((datetime.fromisoformat(dt) - datetime.now()).total_seconds())
+            if remaining_secs_to_wait > 86000:
+                logging.warning("large delay " + str(remaining_secs_to_wait) + " (start date: " + dt + ") reduced to 86000")
+                remaining_secs_to_wait = 86000
             data = {
                 "data": {
                     "key": self.__program_selected,
@@ -204,16 +231,9 @@ class Dishwasher(Device):
                                 } ]
                 }
             }
-            logging.info("query PUT " + uri)
-            js = json.dumps(data)
-            response = requests.put(uri, data=js, headers={"Content-Type": "application/json", "Authorization": "Bearer " + self._auth.access_token})
-            if response.status_code >= 200 and response.status_code <= 299:
-                logging.info("dishwasher program " + self.program_selected + " starts in " + str(remaining_secs_to_wait) + " secs")
-                self.__refresh()
-            else:
-                logging.warning("error occurred by starting " + js)
-                logging.warning("got " + response.text)
-
+            self._perform_put("/programs/active", json.dumps(data, indent=2))
+            logging.info("dishwasher program " + self.program_selected + " starts in " + str(remaining_secs_to_wait) + " secs")
+            self.__refresh()
 
     def __str__(self):
         return "power=" + str(self.power) + \
