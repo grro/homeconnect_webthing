@@ -135,7 +135,7 @@ class Dishwasher(Device):
             elif record['key'] == 'Dishcare.Dishwasher.Option.VarioSpeedPlus':
                 self.program_vario_speed_plus = record['value']
             else:
-                print(record)
+                logging.info("unknown changed " + str(record))
 
     def on_keep_alive_event(self, event):
         if datetime.now() > (self.date_refreshed + timedelta(minutes=45)):
@@ -258,7 +258,7 @@ class HomeConnect:
                         for notify_listener in self.notify_listeners:
                             notify_listener.on_status_event(event)
                     else:
-                        print(event)
+                        logging.info("unknown event type " + str(event))
             except Exception as e:
                 logging.warning("Error occurred by opening sse socket to " + uri + " " + str(e))
                 wait_time_sec = {0: 3, 1:5, 2: 30, 3: 2*60, 4: 5*60}.get(num_reconnect, 30*60)
