@@ -1,7 +1,10 @@
+import logging
 from homeconnect_webthing.app import App, ArgumentSpec
 from homeconnect_webthing.auth import Auth
 from homeconnect_webthing.homeappliances_webthing import run_server
 
+
+logging.getLogger('sseclient').setLevel(logging.WARNING)
 
 def main():
     App.run(run_function=lambda args, desc: run_server(description=desc, port=args['port'], filename=args['authfile']),

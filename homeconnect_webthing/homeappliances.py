@@ -103,8 +103,6 @@ class Dishwasher(Device):
     def on__value_changed_event(self, event):
         if event.id == self.haid:
             try:
-                logging.info("event received: " + str(event))
-                logging.info("data: " + str(event.data))
                 data = json.loads(event.data)
                 self.__on_value_changes(data.get('items', []))
                 for value_changed_listener in self._value_changed_listeners:

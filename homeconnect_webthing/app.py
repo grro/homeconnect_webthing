@@ -75,6 +75,7 @@ class Unit:
             remove(unit_file_fullname)
         except Exception as e:
             pass
+
     def printlog(self, port: int):
         service = self.servicename(port)
         system("sudo journalctl -f -u " + service)
@@ -163,7 +164,10 @@ class App:
             log_level=logging.DEBUG
         else:
             log_level=logging.INFO
+        print("set log level " + str(log_level))
         logging.basicConfig(format='%(asctime)s %(name)-20s: %(levelname)-8s %(message)s', level=log_level, datefmt='%Y-%m-%d %H:%M:%S')
+        logging.getLogger('tornado.access').setLevel(logging.ERROR)
+        logging.getLogger('urllib3.connectionpool').setLevel(logging.WARNING)
 
         handled = False
         if args.get('command', None) is None:
