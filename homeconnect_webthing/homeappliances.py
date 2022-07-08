@@ -145,17 +145,14 @@ class Dishwasher(Device):
             self.__refresh()
 
     def __refresh(self):
-        settings = self._perform_get('/settings')['data']['settings']
-        self.__on_value_changes(settings)
-
-        status = self._perform_get('/status')['data']['status']
-        self.__on_value_changes(status)
-
+        self.__on_value_changes(self._perform_get('/settings')['data']['settings'])
+        self.__on_value_changes(self._perform_get('/status')['data']['status'])
         record = self._perform_get('/programs/selected')['data']
         self.__program_selected = record['key']
         self.__on_value_changes(record['options'])
-
         self.date_refreshed = datetime.now()
+        for value_changed_listener in self._value_changed_listeners:
+            value_changed_listener()
 
     @property
     def power(self):
@@ -267,7 +264,7 @@ class HomeConnect:
                         for notify_listener in self.notify_listeners:
                             notify_listener.on_status_event(event)
                     else:
-                        logging.info("unknown event type " + str(event))
+                        logging.info("unknown event type " + str(event.event))
             except Exception as e:
                 logging.warning("Error occurred by opening sse socket to " + uri + " " + str(e))
                 wait_time_sec = {0: 3, 1:5, 2: 30, 3: 2*60, 4: 5*60}.get(num_reconnect, 30*60)
