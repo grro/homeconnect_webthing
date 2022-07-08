@@ -204,8 +204,13 @@ class Dishwasher(Device):
             logging.info("query PUT " + uri)
             js = json.dumps(data)
             response = requests.put(uri, data=js, headers={"Content-Type": "application/json", "Authorization": "Bearer " + self._auth.access_token})
-            response.raise_for_status()
-            self.__refresh()
+            if response.status_code >= 200 and response.status_code <= 299:
+                logging.info("dishwasher program " + self.program_selected + " starts in " + str(remaining_secs_to_wait) + " secs")
+                self.__refresh()
+            else:
+                logging.warning("error occurred by starting " + js)
+                logging.warning("got " + response.text)
+
 
     def __str__(self):
         return "power=" + str(self.power) + \
