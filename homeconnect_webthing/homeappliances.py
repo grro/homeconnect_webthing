@@ -80,6 +80,7 @@ class Dishwasher(Device):
         self.__program_start_in_relative_sec = 0
         self.__program_remaining_time = ""
         self.__program_progress = 0
+        self.__program_active = ""
         self.__program_remote_control_active = ""
         self.program_extra_try = ""
         self.program_hygiene_plus = ""
@@ -122,6 +123,8 @@ class Dishwasher(Device):
                 self.__power = record['value']
             elif record['key'] == 'BSH.Common.Root.SelectedProgram':
                 self.__program_selected = record['value']
+            elif record['key'] ==  'BSH.Common.Root.ActiveProgram':
+                self.__program_active = record['value']
             elif record['key'] == 'BSH.Common.Option.StartInRelative':
                 self.__program_start_in_relative_sec = record['value']
             elif record['key'] == 'BSH.Common.Option.RemainingProgramTime':
