@@ -75,8 +75,8 @@ class Unit:
             remove(unit_file_fullname)
         except Exception as e:
             pass
-    def printlog(self, args: Dict[str, Any]):
-        service = self.servicename(args['port'])
+    def printlog(self, port: int):
+        service = self.servicename(port)
         system("sudo journalctl -f -u " + service)
 
     def servicename(self, port: int):
@@ -168,7 +168,9 @@ class App:
         handled = False
         if args.get('command', None) is None:
             print("parameter --command has to be set\n")
-        if args['command'] == 'listen':
+        elif args['command'] == 'log':
+            self.unit.printlog(args['port'])
+        elif args['command'] == 'listen':
             if self.check_params(args):
                 handled = self.do_listen(args['port'], args)
         elif args['command'] == 'register':
@@ -177,7 +179,7 @@ class App:
         elif args['command'] == 'deregister':
             handled = self.do_deregister(args['port'])
         else:
-            print("unsupported command " + args['command'] + "\n")
+            print("unsupported command " + str(args['command']) + "\n")
         if not handled:
             self.do_print_usage_info(args)
 
