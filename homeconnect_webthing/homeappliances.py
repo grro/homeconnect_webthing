@@ -167,14 +167,17 @@ class Dishwasher(Device):
             self.__refresh()
 
     def __refresh(self):
-        self.__on_value_changes(self._perform_get('/settings')['data']['settings'])
-        self.__on_value_changes(self._perform_get('/status')['data']['status'])
-        record = self._perform_get('/programs/selected')['data']
-        self.__program_selected = record['key']
-        self.__on_value_changes(record['options'])
-        self.date_refreshed = datetime.now()
-        for value_changed_listener in self._value_changed_listeners:
-            value_changed_listener()
+        try:
+            self.__on_value_changes(self._perform_get('/settings')['data']['settings'])
+            self.__on_value_changes(self._perform_get('/status')['data']['status'])
+            record = self._perform_get('/programs/selected')['data']
+            self.__program_selected = record['key']
+            self.__on_value_changes(record['options'])
+            self.date_refreshed = datetime.now()
+            for value_changed_listener in self._value_changed_listeners:
+                value_changed_listener()
+        except Exception as e:
+            logging.warning("error occurred on refreshing", e)
 
     @property
     def power(self):
