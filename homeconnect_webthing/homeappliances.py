@@ -53,14 +53,18 @@ class Device(EventListener):
             logging.warning("got " + str(response.status_code) + " " + response.text)
             raise Exception("error occurred by calling GET " + uri + " Got " + str(response))
 
-    def _perform_put(self, path:str, data: str) :
+    def _perform_put(self, path:str, data: str, num_tries: int = 1):
         uri = self._uri + path
-        logging.info("query PUT " + uri)
-        response = requests.put(uri, data=data, headers={"Content-Type": "application/json", "Authorization": "Bearer " + self._auth.access_token})
-        if not self.__is_success(response.status_code):
-            logging.warning("error occurred by calling POST " + uri + " " + data)
-            logging.warning("got " + response.text)
-            raise Exception("error occurred by calling GET " + uri + " Got " + str(response))
+        for i in range(0, num_tries):
+            logging.info("query PUT " + uri)
+            response = requests.put(uri, data=data, headers={"Content-Type": "application/json", "Authorization": "Bearer " + self._auth.access_token})
+            if self.__is_success(response.status_code):
+                return
+            else:
+                logging.warning("error occurred by calling POST " + uri + " " + data)
+                logging.warning("got " + response.text)
+                sleep(2)
+        raise Exception("error occurred by calling GET " + uri + " Got " + str(response.status_code) + " " + str(response.text))
 
     @property
     def __fingerprint(self) -> str:
@@ -231,7 +235,7 @@ class Dishwasher(Device):
                                 } ]
                 }
             }
-            self._perform_put("/programs/active", json.dumps(data, indent=2))
+            self._perform_put("/programs/active", json.dumps(data, indent=2), num_tries=3)
             logging.info("dishwasher program " + self.program_selected + " starts in " + str(remaining_secs_to_wait) + " secs")
             self.__refresh()
 
