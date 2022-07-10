@@ -243,9 +243,9 @@ class DishwasherThing(Thing):
         self.start_date.notify_of_external_update(self.dishwasher.start_date)
 
 
-def run_server( description: str, port: int, filename: str):
+def run_server( description: str, port: int, refresh_token: str, client_secret: str):
     homeappliances = []
-    for device in HomeConnect(filename).devices():
+    for device in HomeConnect(refresh_token, client_secret).devices():
         if device.is_dishwasher():
             homeappliances.append(DishwasherThing(description, device))
     homeappliances.sort()
@@ -258,3 +258,4 @@ def run_server( description: str, port: int, filename: str):
         logging.info('stopping webthing server')
         server.stop()
         logging.info('done')
+
