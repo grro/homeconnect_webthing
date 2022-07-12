@@ -115,11 +115,11 @@ class Dishwasher(Device):
         self._value_changed_listeners.add(value_changed_listener)
 
     def on_notify_event(self, event):
-        logging.debug("notify event: " + str(event.event))
+        logging.debug("notify event: " + str(event.data))
         self.on__value_changed_event(event)
 
     def on_status_event(self, event):
-        logging.debug("status event: " + str(event.event))
+        logging.debug("status event: " + str(event.data))
         self.on__value_changed_event(event)
 
     def on__value_changed_event(self, event):
@@ -268,37 +268,47 @@ class HomeConnect:
     def __listening_for_events(self):
         sleep(3)
         uri = HomeConnect.API_URI + "/homeappliances/events"
-        num_reconnect = 0
+        num_reconnects = 0
         while True:
-            client = None
             try:
-                num_reconnect += 1
+                self.__consume_sse_events(uri, max_connect_time_sec=30*60)
+                num_reconnects = 0
                 logging.info("opening sse socket to " + uri)
-                response = requests.get(uri, stream=True, headers={'Accept': 'text/event-stream', "Authorization": "Bearer " + self.auth.access_token})
-                response.raise_for_status()
-                client = sseclient.SSEClient(response)
-
-                num_reconnect = 0
-                logging.info("consuming event...")
-                for event in client.events():
-                    if event.event == "NOTIFY":
-                        for notify_listener in self.notify_listeners:
-                            notify_listener.on_notify_event(event)
-                    elif event.event == "KEEP-ALIVE":
-                        for notify_listener in self.notify_listeners:
-                            notify_listener.on_keep_alive_event(event)
-                    elif event.event == "STATUS":
-                        for notify_listener in self.notify_listeners:
-                            notify_listener.on_status_event(event)
-                    else:
-                        logging.info("unknown event type " + str(event.event))
             except Exception as e:
-                if client is not None:
-                    client.close()
                 logging.warning("Error occurred by opening sse socket to " + uri + " " + str(e))
-                wait_time_sec = {0: 3, 1:5, 2: 30, 3: 2*60, 4: 5*60}.get(num_reconnect, 30*60)
+                wait_time_sec = {0: 3, 1:5, 2: 30, 3: 2*60, 4: 5*60}.get(num_reconnects, 30*60)
+                num_reconnects += 1
                 logging.info("try reconnect in " + str(wait_time_sec) + "sec")
                 sleep(wait_time_sec)
+
+    def __consume_sse_events(self, uri: str, max_connect_time_sec: int):
+        client = None
+        try:
+            logging.info("opening sse socket to " + uri)
+            response = requests.get(uri, stream=True, headers={'Accept': 'text/event-stream', "Authorization": "Bearer " + self.auth.access_token})
+            response.raise_for_status()
+            client = sseclient.SSEClient(response)
+            logging.info("consuming event...")
+
+            connect_time = datetime.now()
+            for event in client.events():
+                if event.event == "NOTIFY":
+                    for notify_listener in self.notify_listeners:
+                        notify_listener.on_notify_event(event)
+                elif event.event == "KEEP-ALIVE":
+                    for notify_listener in self.notify_listeners:
+                        notify_listener.on_keep_alive_event(event)
+                elif event.event == "STATUS":
+                    for notify_listener in self.notify_listeners:
+                        notify_listener.on_status_event(event)
+                else:
+                    logging.info("unknown event type " + str(event.event))
+                # max connection time reached?
+                if datetime.now() > (connect_time + timedelta(seconds=max_connect_time_sec)):
+                    return
+        finally:
+            if client is not None:
+                client.close()
 
     def devices(self) -> List[Device]:
         uri = HomeConnect.API_URI + "/homeappliances"
