@@ -213,20 +213,10 @@ class Dishwasher(Device):
         else:
             return ""
 
-    def to_period(self, future_date: str):
-        remaining_secs_to_wait = (datetime.fromisoformat(future_date) - datetime.now()).seconds
-        if remaining_secs_to_wait > (60 * 60):
-            return int(remaining_secs_to_wait / 60), "minutes"
-        else:
-            return remaining_secs_to_wait, "seconds"
-
-
     def set_start_date(self, dt: str):
         if self.operation == "BSH.Common.EnumType.OperationState.Run":
             logging.info("dishwasher is already running")
         else:
-            dz = datetime.now()
-            delay = (datetime.fromisoformat(dt) - datetime.now())
             remaining_secs_to_wait = int((datetime.fromisoformat(dt) - datetime.now()).total_seconds())
             if remaining_secs_to_wait < 0:
                 logging.warning("negative delay " + str(remaining_secs_to_wait) + " (start date: " + dt + ") delay set to 5 sec")
