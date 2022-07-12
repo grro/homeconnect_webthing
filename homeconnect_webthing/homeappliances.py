@@ -115,11 +115,11 @@ class Dishwasher(Device):
         self._value_changed_listeners.add(value_changed_listener)
 
     def on_notify_event(self, event):
-        logging.debug("notify event: " + str(event))
+        logging.debug("notify event: " + str(event.event))
         self.on__value_changed_event(event)
 
     def on_status_event(self, event):
-        logging.debug("status event: " + str(event))
+        logging.debug("status event: " + str(event.event))
         self.on__value_changed_event(event)
 
     def on__value_changed_event(self, event):
@@ -228,6 +228,9 @@ class Dishwasher(Device):
             dz = datetime.now()
             delay = (datetime.fromisoformat(dt) - datetime.now())
             remaining_secs_to_wait = int((datetime.fromisoformat(dt) - datetime.now()).total_seconds())
+            if remaining_secs_to_wait < 0:
+                logging.warning("negative delay " + str(remaining_secs_to_wait) + " (start date: " + dt + ") delay set to 5 sec")
+                remaining_secs_to_wait = 5
             if remaining_secs_to_wait > 86000:
                 logging.warning("large delay " + str(remaining_secs_to_wait) + " (start date: " + dt + ") reduced to 86000")
                 remaining_secs_to_wait = 86000
