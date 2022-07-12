@@ -59,14 +59,18 @@ class Device(EventListener):
     def _perform_put(self, path:str, data: str, num_tries: int = 1):
         uri = self._uri + path
         for i in range(0, num_tries):
-            logging.info("query PUT " + uri)
+            if num_tries > 0:
+                logging.info("query PUT " + uri + " (" + str(num_tries) + ". retry)")
+            else:
+                logging.info("query PUT " + uri)
+
             response = requests.put(uri, data=data, headers={"Content-Type": "application/json", "Authorization": "Bearer " + self._auth.access_token})
             if self.__is_success(response.status_code):
                 return
             else:
                 logging.warning("error occurred by calling POST " + uri + " " + data)
                 logging.warning("got " + response.text)
-                sleep(2)
+                sleep(1 + num_tries)
         raise Exception("error occurred by calling GET " + uri + " Got " + str(response.status_code) + " " + str(response.text))
 
     @property
@@ -170,8 +174,9 @@ class Dishwasher(Device):
                 logging.info("unknown changed " + str(record))
 
     def on_keep_alive_event(self, event):
-        if datetime.now() > (self.date_refreshed + timedelta(minutes=45)):
-            logging.info("refresh state")
+        period_min = 45
+        if datetime.now() > (self.date_refreshed + timedelta(minutes=period_min)):
+            logging.info("periodic state refresh (each " + str(period_min) + " min)")
             self.__refresh()
 
     def __refresh(self):
@@ -278,7 +283,6 @@ class HomeConnect:
             try:
                 self.__consume_sse_events(uri, max_connect_time_sec=30*60)
                 num_reconnects = 0
-                logging.info("opening sse socket to " + uri)
             except Exception as e:
                 logging.warning("Event stream (" + uri + ") error: " + str(e))
                 wait_time_sec = {0: 3, 1:5, 2: 30, 3: 2*60, 4: 5*60}.get(num_reconnects, 30*60)
