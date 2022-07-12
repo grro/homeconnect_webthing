@@ -115,9 +115,11 @@ class Dishwasher(Device):
         self._value_changed_listeners.add(value_changed_listener)
 
     def on_notify_event(self, event):
+        logging.debug("notify event: " + str(event))
         self.on__value_changed_event(event)
 
     def on_status_event(self, event):
+        logging.debug("status event: " + str(event))
         self.on__value_changed_event(event)
 
     def on__value_changed_event(self, event):
@@ -162,6 +164,7 @@ class Dishwasher(Device):
                 logging.info("unknown changed " + str(record))
 
     def on_keep_alive_event(self, event):
+        logging.debug("keep alive event: " + str(event))
         if datetime.now() > (self.date_refreshed + timedelta(minutes=45)):
             logging.info("refresh state")
             self.__refresh()
@@ -274,6 +277,7 @@ class HomeConnect:
         uri = HomeConnect.API_URI + "/homeappliances/events"
         num_reconnect = 0
         while True:
+            client = None
             try:
                 num_reconnect += 1
                 logging.info("opening sse socket to " + uri)
@@ -296,6 +300,8 @@ class HomeConnect:
                     else:
                         logging.info("unknown event type " + str(event.event))
             except Exception as e:
+                if client is not None:
+                    client.close()
                 logging.warning("Error occurred by opening sse socket to " + uri + " " + str(e))
                 wait_time_sec = {0: 3, 1:5, 2: 30, 3: 2*60, 4: 5*60}.get(num_reconnect, 30*60)
                 logging.info("try reconnect in " + str(wait_time_sec) + "sec")
