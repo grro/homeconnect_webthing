@@ -23,6 +23,9 @@ class EventListener(ABC):
     def on_status_event(self, event):
         pass
 
+    def on_event_event(self, event):
+        pass
+
 
 class Device(EventListener):
 
@@ -122,6 +125,9 @@ class Dishwasher(Device):
         logging.debug("status event: " + str(event.data))
         self.on__value_changed_event(event)
 
+    def on_event_event(self, event):
+        logging.debug("event event: " + str(event.data))
+
     def on__value_changed_event(self, event):
         if event.id == self.haid:
             try:
@@ -164,7 +170,6 @@ class Dishwasher(Device):
                 logging.info("unknown changed " + str(record))
 
     def on_keep_alive_event(self, event):
-        logging.debug("keep alive event: " + str(event))
         if datetime.now() > (self.date_refreshed + timedelta(minutes=45)):
             logging.info("refresh state")
             self.__refresh()
@@ -275,10 +280,10 @@ class HomeConnect:
                 num_reconnects = 0
                 logging.info("opening sse socket to " + uri)
             except Exception as e:
-                logging.warning("Error occurred by opening sse socket to " + uri + " " + str(e))
+                logging.warning("Event stream (" + uri + ") error: " + str(e))
                 wait_time_sec = {0: 3, 1:5, 2: 30, 3: 2*60, 4: 5*60}.get(num_reconnects, 30*60)
                 num_reconnects += 1
-                logging.info("try reconnect in " + str(wait_time_sec) + "sec")
+                logging.info("try " + str(num_reconnects) + ". reconnect in " + str(wait_time_sec) + "sec")
                 sleep(wait_time_sec)
 
     def __consume_sse_events(self, uri: str, max_connect_time_sec: int):
@@ -301,10 +306,14 @@ class HomeConnect:
                 elif event.event == "STATUS":
                     for notify_listener in self.notify_listeners:
                         notify_listener.on_status_event(event)
+                elif event.event == "Event":
+                    for notify_listener in self.notify_listeners:
+                        notify_listener.on_event_event(event)
                 else:
                     logging.info("unknown event type " + str(event.event))
                 # max connection time reached?
                 if datetime.now() > (connect_time + timedelta(seconds=max_connect_time_sec)):
+                    logging.info("closing event stream")
                     return
         finally:
             if client is not None:
