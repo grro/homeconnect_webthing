@@ -14,6 +14,9 @@ from homeconnect_webthing.auth import Auth
 
 class EventListener(ABC):
 
+    def on_connected(self):
+        pass
+
     def on_keep_alive_event(self, event):
         pass
 
@@ -97,7 +100,6 @@ class Device(EventListener):
 class Dishwasher(Device):
 
     def __init__(self, uri: str, auth: Auth, name: str, device_type: str, haid: str, brand: str, vib: str, enumber: str):
-        self.date_refreshed = datetime.now()
         self.__power = ""
         self.__operation = ""
         self.__door = ""
@@ -120,6 +122,10 @@ class Dishwasher(Device):
 
     def register_value_changed_listener(self, value_changed_listener):
         self._value_changed_listeners.add(value_changed_listener)
+
+    def on_connected(self):
+        logging.info("state refresh (new event stream connection)")
+        self.__refresh()
 
     def on_notify_event(self, event):
         logging.debug("notify event: " + str(event.data))
@@ -173,12 +179,6 @@ class Dishwasher(Device):
             else:
                 logging.info("unknown changed " + str(record))
 
-    def on_keep_alive_event(self, event):
-        period_min = 45
-        if datetime.now() > (self.date_refreshed + timedelta(minutes=period_min)):
-            logging.info("periodic state refresh (each " + str(period_min) + " min)")
-            self.__refresh()
-
     def __refresh(self):
         try:
             self.__on_value_changes(self._perform_get('/settings')['data']['settings'])
@@ -186,7 +186,6 @@ class Dishwasher(Device):
             record = self._perform_get('/programs/selected')['data']
             self.__program_selected = record['key']
             self.__on_value_changes(record['options'])
-            self.date_refreshed = datetime.now()
             for value_changed_listener in self._value_changed_listeners:
                 value_changed_listener()
         except Exception as e:
@@ -281,25 +280,28 @@ class HomeConnect:
         num_reconnects = 0
         while True:
             try:
-                self.__consume_sse_events(uri, max_connect_time_sec=30*60)
+                self.__consume_sse_events(uri, max_connection_time_minutes=30)
                 num_reconnects = 0
             except Exception as e:
                 logging.warning("Event stream (" + uri + ") error: " + str(e))
-                wait_time_sec = {0: 3, 1:5, 2: 30, 3: 2*60, 4: 5*60}.get(num_reconnects, 30*60)
+                wait_time_sec = {0: 3, 1:5, 2: 30, 3: 2*60, 4: 5*60}.get(num_reconnects, 20*60)
                 num_reconnects += 1
                 logging.info("try " + str(num_reconnects) + ". reconnect in " + str(wait_time_sec) + "sec")
                 sleep(wait_time_sec)
 
-    def __consume_sse_events(self, uri: str, max_connect_time_sec: int):
+    def __consume_sse_events(self, uri: str, max_connection_time_minutes: int):
         client = None
         try:
-            logging.info("opening sse socket to " + uri)
+            logging.info("opening event stream " + uri)
             response = requests.get(uri, stream=True, headers={'Accept': 'text/event-stream', "Authorization": "Bearer " + self.auth.access_token})
             response.raise_for_status()
             client = sseclient.SSEClient(response)
-            logging.info("consuming event...")
+            logging.info("consuming events...")
 
+            for notify_listener in self.notify_listeners:
+                notify_listener.on_connected()
             connect_time = datetime.now()
+
             for event in client.events():
                 if event.event == "NOTIFY":
                     for notify_listener in self.notify_listeners:
@@ -316,8 +318,8 @@ class HomeConnect:
                 else:
                     logging.info("unknown event type " + str(event.event))
                 # max connection time reached?
-                if datetime.now() > (connect_time + timedelta(seconds=max_connect_time_sec)):
-                    logging.info("closing event stream")
+                if datetime.now() > (connect_time + timedelta(minutes=max_connection_time_minutes)):
+                    logging.info("closing event stream (periodic reconnect)")
                     return
         finally:
             if client is not None:
