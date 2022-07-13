@@ -124,7 +124,7 @@ class Dishwasher(Device):
         self._value_changed_listeners.add(value_changed_listener)
 
     def on_connected(self):
-        logging.info("state refresh (new event stream connection)")
+        logging.info("refresh state (new event stream connection)")
         self.__refresh()
 
     def on_notify_event(self, event):
@@ -292,7 +292,7 @@ class HomeConnect:
     def __consume_sse_events(self, uri: str, max_connection_time_minutes: int):
         client = None
         try:
-            logging.info("opening event stream " + uri)
+            logging.info("opening event stream connection " + uri)
             response = requests.get(uri, stream=True, headers={'Accept': 'text/event-stream', "Authorization": "Bearer " + self.auth.access_token})
             response.raise_for_status()
             client = sseclient.SSEClient(response)
