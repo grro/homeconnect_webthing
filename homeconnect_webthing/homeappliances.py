@@ -319,7 +319,7 @@ class HomeConnect:
                     logging.info("unknown event type " + str(event.event))
                 # max connection time reached?
                 if datetime.now() > (connect_time + timedelta(minutes=max_connection_time_minutes)):
-                    logging.info("closing event stream (periodic reconnect)")
+                    logging.info("closing event stream. Max connect time " + str(max_connection_time_minutes) + " min reached (periodic reconnect)")
                     return
         finally:
             if client is not None:
