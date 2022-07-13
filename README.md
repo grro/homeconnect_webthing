@@ -1,10 +1,10 @@
 # homeconnect_webthing
 A webthing adapter of HomeConnect devices 
 
-This project provides a [webthing API](https://iot.mozilla.org/wot/) to [HomeConnect devices](https://api-docs.home-connect.com/). 
-Currently, device type dishwasher is supported only 
+This project provides a [webthing API](https://iot.mozilla.org/wot/) to access [HomeConnect devices](https://api-docs.home-connect.com/). 
+Currently, the device type ***dishwasher*** is supported only 
 
-The homeconnect_webthing package exposes a http webthing endpoint for HomeConnect devices. E.g. 
+The homeconnect_webthing package exposes a http webthing endpoint for each detected and supported HomeConnect devices. E.g. 
 ```
 # webthing has been started on host 192.168.0.23
 curl http://192.168.0.23:8744/0/properties 
@@ -40,7 +40,7 @@ After this installation you may start the webthing http endpoint inside your pyt
 ```
 sudo homeconnect --command listen --port 8744 --refresh_token eyJ4LXJlZyI6IkVVIiwi...2YXRlIn0= --client_secret DEAE...522BD0 
 ```
-Here, the webthing API will be bind to the local port 8744. Furthermore, the refresh_token and refresh_token has to be set. 
+Here, the webthing API will be bound to the local port 8744. Furthermore, the refresh_token and refresh_token has to be set. 
 Please refer [HomeConnect Authorization](https://api-docs.home-connect.com/quickstart?#authorization) to get your refresh_token and client_secret
 
 Alternatively to the *listen* command, you can use the *register* command to register and start the webthing service as systemd unit.
