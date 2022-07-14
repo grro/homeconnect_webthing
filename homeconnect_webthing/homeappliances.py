@@ -62,8 +62,8 @@ class Device(EventListener):
     def _perform_put(self, path:str, data: str, num_tries: int = 1):
         uri = self._uri + path
         for i in range(0, num_tries):
-            if num_tries > 0:
-                logging.info("query PUT " + uri + " (" + str(num_tries) + ". retry)")
+            if i > 0:
+                logging.info("query PUT " + uri + " (" + str(i) + ". retry)")
             else:
                 logging.info("query PUT " + uri)
 
