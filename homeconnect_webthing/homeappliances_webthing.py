@@ -20,8 +20,6 @@ class DishwasherThing(Thing):
             description
         )
 
-        self.ioloop = tornado.ioloop.IOLoop.current()
-
         self.dishwasher = dishwasher
 
         self.name = Value(dishwasher.name)
@@ -218,6 +216,10 @@ class DishwasherThing(Thing):
                          'description': 'progress',
                          'readOnly': True,
                      }))
+
+        self.ioloop = tornado.ioloop.IOLoop.current()
+        self.dishwasher.register_value_changed_listener(self.on_value_changed)
+
 
     def on_value_changed(self):
         self.ioloop.add_callback(self.__on_value_changed)

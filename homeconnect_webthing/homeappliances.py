@@ -123,11 +123,19 @@ class Dishwasher(Device):
     def register_value_changed_listener(self, value_changed_listener):
         self._value_changed_listeners.add(value_changed_listener)
         logging.info("value_changed_listener " + str(value_changed_listener) + " registered")
-        self.__refresh()
+        self.__notify_listeners()
+
+    def __notify_listeners(self):
+        for value_changed_listener in self._value_changed_listeners:
+            value_changed_listener()
 
     def on_connected(self):
         logging.info("refresh state (new event stream connection)")
         self.__refresh()
+
+    def on_keep_alive_event(self, event):
+        for value_changed_listener in self._value_changed_listeners:
+            value_changed_listener()
 
     def on_notify_event(self, event):
         logging.debug("notify event: " + str(event.data))
@@ -145,8 +153,7 @@ class Dishwasher(Device):
             try:
                 data = json.loads(event.data)
                 self.__on_value_changes(data.get('items', []))
-                for value_changed_listener in self._value_changed_listeners:
-                    value_changed_listener()
+                self.__notify_listeners()
             except Exception as e:
                 logging.warning("error occurred by handling event " + str(event), e)
 
@@ -188,8 +195,7 @@ class Dishwasher(Device):
             record = self._perform_get('/programs/selected')['data']
             self.__program_selected = record['key']
             self.__on_value_changes(record['options'])
-            for value_changed_listener in self._value_changed_listeners:
-                value_changed_listener()
+            self.__notify_listeners()
         except Exception as e:
             logging.warning("error occurred on refreshing", e)
 
