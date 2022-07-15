@@ -122,6 +122,8 @@ class Dishwasher(Device):
 
     def register_value_changed_listener(self, value_changed_listener):
         self._value_changed_listeners.add(value_changed_listener)
+        value_changed_listener()
+        logging.info("value_changed_listener " + str(value_changed_listener) + " registerred. Notify initial state")
 
     def on_connected(self):
         logging.info("refresh state (new event stream connection)")
