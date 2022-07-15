@@ -59,22 +59,18 @@ class Device(EventListener):
             logging.warning("got " + str(response.status_code) + " " + response.text)
             raise Exception("error occurred by calling GET " + uri + " Got " + str(response))
 
-    def _perform_put(self, path:str, data: str, num_tries: int = 1):
+    def _perform_put(self, path:str, data: str, max_trials: int = 3, current_trial: int = 1):
         uri = self._uri + path
-        for i in range(0, num_tries):
-            if i > 0:
-                logging.info("query PUT " + uri + " (" + str(i) + ". retry)")
-            else:
-                logging.info("query PUT " + uri)
-
-            response = requests.put(uri, data=data, headers={"Content-Type": "application/json", "Authorization": "Bearer " + self._auth.access_token})
-            if self.__is_success(response.status_code):
-                return
-            else:
-                logging.warning("error occurred by calling POST " + uri + " " + data)
-                logging.warning("got " + str(response.status_code) + " " + str(response.text))
-                sleep(1 + num_tries)
-        raise Exception("error occurred by calling GET " + uri + " Got " + str(response.status_code) + " " + str(response.text))
+        logging.info("query PUT " + uri + " (" + str(current_trial) + " trial)")
+        response = requests.put(uri, data=data, headers={"Content-Type": "application/json", "Authorization": "Bearer " + self._auth.access_token})
+        if not self.__is_success(response.status_code):
+            logging.warning("error occurred by calling PUT " + uri + " " + data)
+            logging.warning("got " + str(response.status_code) + " " + str(response.text))
+            if current_trial <= max_trials:
+                delay = 1 + current_trial
+                logging.warning("waiting " + str(delay) + " sec for retry")
+                sleep(delay)
+                self._perform_put(path, data, max_trials, current_trial+1)
 
     @property
     def __fingerprint(self) -> str:
@@ -161,16 +157,16 @@ class Dishwasher(Device):
         for record in changes:
             if record['key'] == 'BSH.Common.Status.DoorState':
                 self.__door = record['value']
-                logging.info("door state updated " + str(self.__door))
+                logging.info("door state updated: " + str(self.__door))
             elif record['key'] == 'BSH.Common.Status.OperationState':
                 self.__operation = record['value']
-                logging.info("operation state updated " + str(self.__operation))
+                logging.info("operation state updated: " + str(self.__operation))
             elif record['key'] == 'BSH.Common.Status.RemoteControlStartAllowed':
                 self.remote_start_allowed = record['value']
-                logging.info("remote start allowed updated " + str(self.remote_start_allowed))
+                logging.info("remote start allowed updated: " + str(self.remote_start_allowed))
             elif record['key'] == 'BSH.Common.Setting.PowerState':
                 self.__power = record['value']
-                logging.info("power state updated " + str(self.__power))
+                logging.info("power state updated: " + str(self.__power))
             elif record['key'] == 'BSH.Common.Root.SelectedProgram':
                 self.__program_selected = record['value']
             elif record['key'] ==  'BSH.Common.Root.ActiveProgram':
@@ -245,6 +241,7 @@ class Dishwasher(Device):
             if remaining_secs_to_wait > 86000:
                 logging.warning("large delay " + str(remaining_secs_to_wait) + " (start date: " + dt + ") reduced to 86000")
                 remaining_secs_to_wait = 86000
+
             data = {
                 "data": {
                     "key": self.__program_selected,
@@ -256,11 +253,11 @@ class Dishwasher(Device):
                 }
             }
             try:
-                self._perform_put("/programs/active", json.dumps(data, indent=2), num_tries=3)
+                self._perform_put("/programs/active", json.dumps(data, indent=2), max_trials=3)
                 logging.info("dishwasher program " + self.program_selected + " starts in " + str(remaining_secs_to_wait) + " secs")
                 self.__refresh()
             except Exception as e:
-                logging.warning("error occured by starting dishwasher", e)
+                logging.warning("error occurred by starting dishwasher", e)
 
     def __str__(self):
         return "power=" + str(self.power) + \
