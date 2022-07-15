@@ -23,8 +23,6 @@ class DishwasherThing(Thing):
         self.ioloop = tornado.ioloop.IOLoop.current()
 
         self.dishwasher = dishwasher
-        dishwasher.register_value_changed_listener(self.on_value_changed)
-
 
         self.name = Value(dishwasher.name)
         self.add_property(
