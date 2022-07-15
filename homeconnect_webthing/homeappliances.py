@@ -280,13 +280,13 @@ class HomeConnect:
         num_reconnects = 0
         while True:
             try:
-                self.__consume_sse_events(uri, max_connection_time_minutes=30)
+                self.__consume_sse_events(uri, max_connection_time_minutes=55)
                 num_reconnects = 0
             except Exception as e:
                 logging.warning("Event stream (" + uri + ") error: " + str(e))
                 wait_time_sec = {0: 3, 1:5, 2: 30, 3: 2*60, 4: 5*60}.get(num_reconnects, 20*60)
                 num_reconnects += 1
-                logging.info("try " + str(num_reconnects) + ". reconnect in " + str(wait_time_sec) + "sec")
+                logging.info("try " + str(num_reconnects) + ". reconnect in " + str(wait_time_sec) + " sec")
                 sleep(wait_time_sec)
 
     def __consume_sse_events(self, uri: str, max_connection_time_minutes: int):
@@ -294,33 +294,36 @@ class HomeConnect:
         try:
             logging.info("opening event stream connection " + uri)
             response = requests.get(uri, stream=True, headers={'Accept': 'text/event-stream', "Authorization": "Bearer " + self.auth.access_token})
-            response.raise_for_status()
-            client = sseclient.SSEClient(response)
-            logging.info("consuming events...")
+            if response.status_code == 200:
+                client = sseclient.SSEClient(response)
+                logging.info("consuming events...")
 
-            for notify_listener in self.notify_listeners:
-                notify_listener.on_connected()
-            connect_time = datetime.now()
+                for notify_listener in self.notify_listeners:
+                    notify_listener.on_connected()
+                connect_time = datetime.now()
 
-            for event in client.events():
-                if event.event == "NOTIFY":
-                    for notify_listener in self.notify_listeners:
-                        notify_listener.on_notify_event(event)
-                elif event.event == "KEEP-ALIVE":
-                    for notify_listener in self.notify_listeners:
-                        notify_listener.on_keep_alive_event(event)
-                elif event.event == "STATUS":
-                    for notify_listener in self.notify_listeners:
-                        notify_listener.on_status_event(event)
-                elif event.event == "Event":
-                    for notify_listener in self.notify_listeners:
-                        notify_listener.on_event_event(event)
-                else:
-                    logging.info("unknown event type " + str(event.event))
-                # max connection time reached?
-                if datetime.now() > (connect_time + timedelta(minutes=max_connection_time_minutes)):
-                    logging.info("closing event stream. Max connect time " + str(max_connection_time_minutes) + " min reached (periodic reconnect)")
-                    return
+                for event in client.events():
+                    if event.event == "NOTIFY":
+                        for notify_listener in self.notify_listeners:
+                            notify_listener.on_notify_event(event)
+                    elif event.event == "KEEP-ALIVE":
+                        for notify_listener in self.notify_listeners:
+                            notify_listener.on_keep_alive_event(event)
+                    elif event.event == "STATUS":
+                        for notify_listener in self.notify_listeners:
+                            notify_listener.on_status_event(event)
+                    elif event.event == "Event":
+                        for notify_listener in self.notify_listeners:
+                            notify_listener.on_event_event(event)
+                    else:
+                        logging.info("unknown event type " + str(event.event))
+                    # max connection time reached?
+                    if datetime.now() > (connect_time + timedelta(minutes=max_connection_time_minutes)):
+                        logging.info("closing event stream. Max connect time " + str(max_connection_time_minutes) + " min reached (periodic reconnect)")
+                        return
+            else:
+                logging.warning("error occurred by opening event stream connection " + uri)
+                logging.warning("got " + str(response.status_code) + " " + response.text)
         finally:
             if client is not None:
                 client.close()
