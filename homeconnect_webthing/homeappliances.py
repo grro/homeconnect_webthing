@@ -17,6 +17,9 @@ class EventListener(ABC):
     def on_connected(self):
         pass
 
+    def on_disconnected(self):
+        pass
+
     def on_keep_alive_event(self, event):
         pass
 
@@ -50,7 +53,7 @@ class Device(EventListener):
 
     def _perform_get(self, path:str) -> Dict[str, Any]:
         uri = self._uri + path
-        logging.info("query GET " + uri)
+        #logging.info("query GET " + uri)
         response = requests.get(uri, headers={"Authorization": "Bearer " + self._auth.access_token})
         if self.__is_success(response.status_code):
             return response.json()
@@ -61,7 +64,7 @@ class Device(EventListener):
 
     def _perform_put(self, path:str, data: str, max_trials: int = 3, current_trial: int = 1):
         uri = self._uri + path
-        logging.info("query PUT " + uri + " (" + str(current_trial) + " trial)")
+        #logging.info("query PUT " + uri + " (" + str(current_trial) + " trial)")
         response = requests.put(uri, data=data, headers={"Content-Type": "application/json", "Authorization": "Bearer " + self._auth.access_token})
         if not self.__is_success(response.status_code):
             logging.warning("error occurred by calling PUT " + uri + " " + data)
@@ -241,11 +244,11 @@ class Dishwasher(Device):
             data = {
                 "data": {
                     "key": self.__program_selected,
-                    "options": [ {
+                    "options": [{
                                     "key": "BSH.Common.Option.StartInRelative",
                                     "value": remaining_secs_to_wait,
                                     "unit": "seconds"
-                                } ]
+                                }]
                 }
             }
             try:
@@ -254,7 +257,7 @@ class Dishwasher(Device):
             except Exception as e:
                 logging.warning("error occurred by starting dishwasher", e)
         else:
-            logging.info("ignore starting. Dishwasher is " + self.__operation + "state")
+            logging.info("ignore starting. Dishwasher is in state " + self.__operation)
         self.__refresh()
 
     def __str__(self):
@@ -337,6 +340,8 @@ class HomeConnect:
         finally:
             if client is not None:
                 client.close()
+                for notify_listener in self.notify_listeners:
+                    notify_listener.on_disconnected()
 
     def devices(self) -> List[Device]:
         uri = HomeConnect.API_URI + "/homeappliances"
