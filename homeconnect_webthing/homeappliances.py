@@ -132,6 +132,9 @@ class Dishwasher(Device):
         logging.info("refresh state (new event stream connection)")
         self.__refresh()
 
+    def on_keep_alive_event(self, event):
+        logging.debug("keep alive event")
+
     def on_notify_event(self, event):
         logging.debug("notify event: " + str(event.data))
         self.on__value_changed_event(event)

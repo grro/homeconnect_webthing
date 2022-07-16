@@ -225,6 +225,7 @@ class DishwasherThing(Thing):
         self.ioloop.add_callback(self.__on_value_changed)
 
     def __on_value_changed(self):
+        logging.info("on value changed")
         self.power.notify_of_external_update(self.dishwasher.power)
         self.door.notify_of_external_update(self.dishwasher.door)
         self.operation.notify_of_external_update(self.dishwasher.operation)
