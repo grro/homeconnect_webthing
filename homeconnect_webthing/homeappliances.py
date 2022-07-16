@@ -147,7 +147,7 @@ class Dishwasher(Device):
         if event.id == self.haid:
             try:
                 data = json.loads(event.data)
-                self.__on_value_changes(data.get('items', [], "updated"))
+                self.__on_value_changes(data.get('items', []), "updated")
                 self.__notify_listeners()
             except Exception as e:
                 logging.warning("error occurred by handling event " + str(event), e)
