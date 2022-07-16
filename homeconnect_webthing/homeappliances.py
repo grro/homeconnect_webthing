@@ -129,10 +129,6 @@ class Dishwasher(Device):
         logging.info("refresh state (new event stream connection)")
         self.__refresh()
 
-    def on_keep_alive_event(self, event):
-        for value_changed_listener in self._value_changed_listeners:
-            value_changed_listener()
-
     def on_notify_event(self, event):
         logging.debug("notify event: " + str(event.data))
         self.on__value_changed_event(event)
@@ -188,14 +184,15 @@ class Dishwasher(Device):
             else:
                 logging.info("unknown changed " + str(record))
 
-    def __refresh(self):
+    def __refresh(self, notify: bool = True):
         try:
             self.__on_value_changes(self._perform_get('/settings')['data']['settings'])
             self.__on_value_changes(self._perform_get('/status')['data']['status'])
             record = self._perform_get('/programs/selected')['data']
             self.__program_selected = record['key']
             self.__on_value_changes(record['options'])
-            self.__notify_listeners()
+            if notify:
+                self.__notify_listeners()
         except Exception as e:
             logging.warning("error occurred on refreshing", e)
 
@@ -231,7 +228,7 @@ class Dishwasher(Device):
             return ""
 
     def set_start_date(self, dt: str):
-        self.__refresh()
+        self.__refresh(notify=False)
         if self.__operation == "BSH.Common.EnumType.OperationState.Ready":
             remaining_secs_to_wait = int((datetime.fromisoformat(dt) - datetime.now()).total_seconds())
             if remaining_secs_to_wait < 0:
@@ -258,6 +255,7 @@ class Dishwasher(Device):
                 logging.warning("error occurred by starting dishwasher", e)
         else:
             logging.info("ignore starting. Dishwasher is " + self.__operation + "state")
+        self.__refresh()
 
     def __str__(self):
         return "power=" + str(self.power) + \
