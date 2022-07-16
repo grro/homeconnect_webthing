@@ -110,7 +110,6 @@ class Dishwasher(Device):
         self.program_hygiene_plus = ""
         self.program_vario_speed_plus = ""
         self._value_changed_listeners = set()
-        self.started_date = datetime.now() - timedelta(hours=2)
         super().__init__(uri, auth, name, device_type, haid, brand, vib, enumber)
         self.__refresh()
 
@@ -232,9 +231,8 @@ class Dishwasher(Device):
             return ""
 
     def set_start_date(self, dt: str):
-        if self.operation == "BSH.Common.EnumType.OperationState.Run" or (datetime.now() < self.started_date + timedelta(seconds=10)):
-            logging.info("dishwasher is already running")
-        else:
+        self.__refresh()
+        if self.__operation == "BSH.Common.EnumType.OperationState.Ready":
             remaining_secs_to_wait = int((datetime.fromisoformat(dt) - datetime.now()).total_seconds())
             if remaining_secs_to_wait < 0:
                 logging.warning("negative delay " + str(remaining_secs_to_wait) + " (start date: " + dt + ") delay set to 5 sec")
@@ -256,17 +254,17 @@ class Dishwasher(Device):
             try:
                 self._perform_put("/programs/active", json.dumps(data, indent=2), max_trials=3)
                 logging.info("dishwasher program " + self.program_selected + " starts in " + str(remaining_secs_to_wait) + " secs")
-                self.started_date = datetime.now()
-                self.__refresh()
             except Exception as e:
                 logging.warning("error occurred by starting dishwasher", e)
+        else:
+            logging.info("ignore starting. Dishwasher is " + self.__operation + "state")
 
     def __str__(self):
         return "power=" + str(self.power) + \
-               "operation=" + str(self.operation) + \
-               "\ndoor=" + str(self.door) + \
-               "\nremote_start_allowed=" + str(self.remote_start_allowed) + \
-               "\nprogram_selected=" + str(self.program_selected)
+           "operation=" + str(self.operation) + \
+           "\ndoor=" + str(self.door) + \
+           "\nremote_start_allowed=" + str(self.remote_start_allowed) + \
+           "\nprogram_selected=" + str(self.program_selected)
 
     def __repr__(self):
         return self.__str__()
