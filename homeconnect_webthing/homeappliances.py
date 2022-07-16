@@ -257,7 +257,7 @@ class Dishwasher(Device):
             except Exception as e:
                 logging.warning("error occurred by starting dishwasher", e)
         else:
-            logging.info("ignore starting. Dishwasher is in state " + self.__operation)
+            logging.info("ignoring start command. Dishwasher is in state " + self.__operation)
         self.__refresh()
 
     def __str__(self):
