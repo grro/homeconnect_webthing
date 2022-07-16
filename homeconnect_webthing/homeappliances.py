@@ -147,25 +147,25 @@ class Dishwasher(Device):
         if event.id == self.haid:
             try:
                 data = json.loads(event.data)
-                self.__on_value_changes(data.get('items', []))
+                self.__on_value_changes(data.get('items', [], "updated"))
                 self.__notify_listeners()
             except Exception as e:
                 logging.warning("error occurred by handling event " + str(event), e)
 
-    def __on_value_changes(self, changes: List[Any]):
+    def __on_value_changes(self, changes: List[Any], ops: str = "updated"):
         for record in changes:
             if record['key'] == 'BSH.Common.Status.DoorState':
                 self.__door = record['value']
-                logging.info("door state updated: " + str(self.__door))
+                logging.info("door state " + ops + ": " + str(self.__door))
             elif record['key'] == 'BSH.Common.Status.OperationState':
                 self.__operation = record['value']
-                logging.info("operation state updated: " + str(self.__operation))
+                logging.info("operation state " + ops + ": " + str(self.__operation))
             elif record['key'] == 'BSH.Common.Status.RemoteControlStartAllowed':
                 self.remote_start_allowed = record['value']
-                logging.info("remote start allowed updated: " + str(self.remote_start_allowed))
+                logging.info("remote start allowed " + ops + ": " + str(self.remote_start_allowed))
             elif record['key'] == 'BSH.Common.Setting.PowerState':
                 self.__power = record['value']
-                logging.info("power state updated: " + str(self.__power))
+                logging.info("power state " + ops + ": " + str(self.__power))
             elif record['key'] == 'BSH.Common.Root.SelectedProgram':
                 self.__program_selected = record['value']
             elif record['key'] ==  'BSH.Common.Root.ActiveProgram':
@@ -189,11 +189,11 @@ class Dishwasher(Device):
 
     def __refresh(self, notify: bool = True):
         try:
-            self.__on_value_changes(self._perform_get('/settings')['data']['settings'])
-            self.__on_value_changes(self._perform_get('/status')['data']['status'])
+            self.__on_value_changes(self._perform_get('/settings')['data']['settings'], "fetched")
+            self.__on_value_changes(self._perform_get('/status')['data']['status'], "fetched")
             record = self._perform_get('/programs/selected')['data']
             self.__program_selected = record['key']
-            self.__on_value_changes(record['options'])
+            self.__on_value_changes(record['options'], "fetched")
             if notify:
                 self.__notify_listeners()
         except Exception as e:
