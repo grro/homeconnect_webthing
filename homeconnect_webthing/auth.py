@@ -55,7 +55,7 @@ class Auth:
         response.raise_for_status()
         data = response.json()
         expiring_date = datetime.now() + timedelta(seconds=data['expires_in'])
-        logging.info("got new access token ("+ self.__print_valid_to(expiring_date) + ")")
+        logging.info("new access token created ("+ self.__print_valid_to(expiring_date) + ")")
         return data['access_token'], expiring_date
 
     def store(self, filename : str = DEFAULT_FILENAME):
