@@ -36,9 +36,14 @@ class Auth:
         self.__client_secret = client_secret
         self.__access_token, self.__expiring_date = self.__refresh_access_token()
 
+    @staticmethod
+    def __print_valid_to(expiring_date: datetime):
+        return "valid until " + str(expiring_date.strftime("%Y-%m-%dT%H:%M:%S"))
+
     @property
     def access_token(self) -> str:
         if datetime.now() > (self.__expiring_date + timedelta(seconds=60)):
+            logging.info("access token expired (" + self.__print_valid_to(self.__expiring_date) + "). Requesting new access token")
             self.__refresh_access_token()
         return self.__access_token
 
@@ -50,6 +55,7 @@ class Auth:
         response.raise_for_status()
         data = response.json()
         expiring_date = datetime.now() + timedelta(seconds=data['expires_in'])
+        logging.info("got new access token ("+ self.__print_valid_to(expiring_date) + ")")
         return data['access_token'], expiring_date
 
     def store(self, filename : str = DEFAULT_FILENAME):

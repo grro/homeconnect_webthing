@@ -296,7 +296,7 @@ class HomeConnect:
         num_reconnects = 0
         while True:
             try:
-                self.__consume_sse_events(uri, max_connection_time_minutes=55)
+                self.__consume_sse_events(uri, max_connection_time_minutes=45)
                 num_reconnects = 0
             except Exception as e:
                 logging.warning("Event stream (" + uri + ") error: " + str(e))
