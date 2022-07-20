@@ -34,7 +34,7 @@ class Auth:
     def __init__(self, refresh_token: str, client_secret: str):
         self.__refresh_token = refresh_token
         self.__client_secret = client_secret
-        self.__access_token, self.__expiring_date = self.__refresh_access_token()
+        self.__access_token, self.__expiring_date = self.__create_access_token()
 
     @staticmethod
     def __print_valid_to(expiring_date: datetime):
@@ -44,10 +44,10 @@ class Auth:
     def access_token(self) -> str:
         if datetime.now() > (self.__expiring_date + timedelta(seconds=60)):
             logging.info("access token expired (" + self.__print_valid_to(self.__expiring_date) + "). Requesting new access token")
-            self.__refresh_access_token()
+            self.__access_token, self.__expiring_date = self.__create_access_token()
         return self.__access_token
 
-    def __refresh_access_token(self) -> Tuple[str, datetime]:
+    def __create_access_token(self) -> Tuple[str, datetime]:
         data = {"grant_type": "refresh_token",
                 "refresh_token": self.__refresh_token,
                 "client_secret": self.__client_secret}
