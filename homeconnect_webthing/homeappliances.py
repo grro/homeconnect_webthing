@@ -192,6 +192,7 @@ class Dishwasher(Device):
 
     def __refresh(self, notify: bool = True):
         try:
+            logging.info("fetch settings, status and selection")
             self.__on_value_changes(self._perform_get('/settings')['data']['settings'], "fetched")
             self.__on_value_changes(self._perform_get('/status')['data']['status'], "fetched")
             record = self._perform_get('/programs/selected')['data']
@@ -296,20 +297,23 @@ class HomeConnect:
         num_reconnects = 0
         while True:
             try:
-                self.__consume_sse_events(uri, max_connection_time_minutes=45)
+                self.__consume_sse_events(uri, read_timeout_sec=3 * 60, max_lifetime_sec=45 * 60)
                 num_reconnects = 0
             except Exception as e:
-                logging.warning("Event stream (" + uri + ") error: " + str(e))
+                logging.warning("Event stream (" + uri + ") error: ", e)
                 wait_time_sec = {0: 3, 1:5, 2: 30, 3: 2*60, 4: 5*60}.get(num_reconnects, 20*60)
                 num_reconnects += 1
                 logging.info("try " + str(num_reconnects) + ". reconnect in " + str(wait_time_sec) + " sec")
                 sleep(wait_time_sec)
 
-    def __consume_sse_events(self, uri: str, max_connection_time_minutes: int):
+    def __consume_sse_events(self, uri: str, read_timeout_sec: int, max_lifetime_sec:int):
         client = None
         try:
-            logging.info("opening event stream connection " + uri)
-            response = requests.get(uri, stream=True, headers={'Accept': 'text/event-stream', "Authorization": "Bearer " + self.auth.access_token})
+            logging.info("opening event stream connection " + uri + "(read timeout " + str(read_timeout_sec) + " sec, lifetimeout " + str(max_lifetime_sec) + " sec)")
+            response = requests.get(uri,
+                                    stream=True,
+                                    timeout=read_timeout_sec,
+                                    headers={'Accept': 'text/event-stream', "Authorization": "Bearer " + self.auth.access_token})
             if response.status_code == 200:
                 client = sseclient.SSEClient(response)
                 logging.info("consuming events...")
@@ -333,18 +337,18 @@ class HomeConnect:
                             notify_listener.on_event_event(event)
                     else:
                         logging.info("unknown event type " + str(event.event))
-                    # max connection time reached?
-                    if datetime.now() > (connect_time + timedelta(minutes=max_connection_time_minutes)):
-                        logging.info("closing event stream. Max connect time " + str(max_connection_time_minutes) + " min reached (periodic reconnect)")
+                    if datetime.now() > (connect_time + timedelta(seconds=max_lifetime_sec)):
+                        logging.info("closing event stream. Max lifetime " + str(max_lifetime_sec) + " sec reached (periodic reconnect)")
                         return
             else:
                 logging.warning("error occurred by opening event stream connection " + uri)
                 logging.warning("got " + str(response.status_code) + " " + response.text)
         finally:
+            for notify_listener in self.notify_listeners:
+                notify_listener.on_disconnected()
+            logging.info("event stream closed")
             if client is not None:
-                client.close()
-                for notify_listener in self.notify_listeners:
-                    notify_listener.on_disconnected()
+                    client.close()
 
     def devices(self) -> List[Device]:
         uri = HomeConnect.API_URI + "/homeappliances"
