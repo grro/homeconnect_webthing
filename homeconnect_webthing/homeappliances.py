@@ -133,18 +133,20 @@ class Dishwasher(Device):
         self.__refresh()
 
     def on_keep_alive_event(self, event):
-        logging.debug("keep alive event")
+        #logging.debug("keep alive event")
+        pass
 
     def on_notify_event(self, event):
-        logging.debug("notify event: " + str(event.data))
+        #logging.debug("notify event: " + str(event.data))
         self.on__value_changed_event(event)
 
     def on_status_event(self, event):
-        logging.debug("status event: " + str(event.data))
+        #logging.debug("status event: " + str(event.data))
         self.on__value_changed_event(event)
 
     def on_event_event(self, event):
-        logging.debug("event event: " + str(event.data))
+        #logging.debug("event event: " + str(event.data))
+        pass
 
     def on__value_changed_event(self, event):
         if event.id == self.haid:
