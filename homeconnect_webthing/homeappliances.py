@@ -54,7 +54,7 @@ class Device(EventListener):
     def _perform_get(self, path:str) -> Dict[str, Any]:
         uri = self._uri + path
         #logging.info("query GET " + uri)
-        response = requests.get(uri, headers={"Authorization": "Bearer " + self._auth.access_token})
+        response = requests.get(uri, headers={"Authorization": "Bearer " + self._auth.access_token}, timeout=5000)
         if self.__is_success(response.status_code):
             return response.json()
         else:
@@ -65,7 +65,7 @@ class Device(EventListener):
     def _perform_put(self, path:str, data: str, max_trials: int = 3, current_trial: int = 1):
         uri = self._uri + path
         #logging.info("query PUT " + uri + " (" + str(current_trial) + " trial)")
-        response = requests.put(uri, data=data, headers={"Content-Type": "application/json", "Authorization": "Bearer " + self._auth.access_token})
+        response = requests.put(uri, data=data, headers={"Content-Type": "application/json", "Authorization": "Bearer " + self._auth.access_token}, timeout=5000)
         if not self.__is_success(response.status_code):
             logging.warning("error occurred by calling PUT " + uri + " " + data)
             logging.warning("got " + str(response.status_code) + " " + str(response.text))
@@ -195,8 +195,12 @@ class Dishwasher(Device):
     def __refresh(self, notify: bool = True):
         try:
             logging.info("fetch settings, status and selection")
-            self.__on_value_changes(self._perform_get('/settings')['data']['settings'], "fetched")
-            self.__on_value_changes(self._perform_get('/status')['data']['status'], "fetched")
+            settings = self._perform_get('/settings')['data']['settings']
+            self.__on_value_changes(settings, "fetched")
+
+            status = self._perform_get('/status')['data']['status']
+            self.__on_value_changes(status, "fetched")
+
             record = self._perform_get('/programs/selected')['data']
             self.__program_selected = record['key']
             self.__on_value_changes(record['options'], "fetched")
@@ -307,6 +311,7 @@ class HomeConnect:
                 num_reconnects += 1
                 logging.info("try " + str(num_reconnects) + ". reconnect in " + str(wait_time_sec) + " sec")
                 sleep(wait_time_sec)
+                logging.info("try reconnect now")
 
     def __consume_sse_events(self, uri: str, read_timeout_sec: int, max_lifetime_sec:int):
         client = None
@@ -355,7 +360,7 @@ class HomeConnect:
     def devices(self) -> List[Device]:
         uri = HomeConnect.API_URI + "/homeappliances"
         logging.info("requesting " + uri)
-        response = requests.get(uri, headers={"Authorization": "Bearer " + self.auth.access_token})
+        response = requests.get(uri, headers={"Authorization": "Bearer " + self.auth.access_token}, timeout=5000)
         response.raise_for_status()
         data = response.json()
         devices = list()
