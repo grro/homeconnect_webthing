@@ -10,6 +10,9 @@ from datetime import datetime, timedelta
 from homeconnect_webthing.auth import Auth
 
 
+def is_success(status_code: int) -> bool:
+    return status_code >= 200 and status_code <= 299
+
 
 
 class EventListener(ABC):
@@ -48,14 +51,11 @@ class Device(EventListener):
     def is_dishwasher(self) -> bool:
         return False
 
-    def __is_success(self, status_code: int) -> bool:
-        return status_code >= 200 and status_code <= 299
-
     def _perform_get(self, path:str) -> Dict[str, Any]:
         uri = self._uri + path
         #logging.info("query GET " + uri)
         response = requests.get(uri, headers={"Authorization": "Bearer " + self._auth.access_token}, timeout=5000)
-        if self.__is_success(response.status_code):
+        if is_success(response.status_code):
             return response.json()
         else:
             logging.warning("error occurred by calling GET " + uri)
@@ -64,9 +64,8 @@ class Device(EventListener):
 
     def _perform_put(self, path:str, data: str, max_trials: int = 3, current_trial: int = 1):
         uri = self._uri + path
-        #logging.info("query PUT " + uri + " (" + str(current_trial) + " trial)")
         response = requests.put(uri, data=data, headers={"Content-Type": "application/json", "Authorization": "Bearer " + self._auth.access_token}, timeout=5000)
-        if not self.__is_success(response.status_code):
+        if not is_success(response.status_code):
             logging.warning("error occurred by calling PUT " + uri + " " + data)
             logging.warning("got " + str(response.status_code) + " " + str(response.text))
             if current_trial <= max_trials:
@@ -322,7 +321,7 @@ class HomeConnect:
                                     stream=True,
                                     timeout=read_timeout_sec,
                                     headers={'Accept': 'text/event-stream', "Authorization": "Bearer " + self.auth.access_token})
-            if response.status_code == 200:
+            if is_success(response.status_code):
                 client = sseclient.SSEClient(response)
                 logging.info("consuming events...")
 
@@ -362,21 +361,25 @@ class HomeConnect:
         uri = HomeConnect.API_URI + "/homeappliances"
         logging.info("requesting " + uri)
         response = requests.get(uri, headers={"Authorization": "Bearer " + self.auth.access_token}, timeout=5000)
-        response.raise_for_status()
-        data = response.json()
-        devices = list()
-        for homeappliances in data['data']['homeappliances']:
-            device = create_device(HomeConnect.API_URI + "/homeappliances/" + homeappliances['haId'],
-                                   self.auth,
-                                   homeappliances['name'],
-                                   homeappliances['type'],
-                                   homeappliances['haId'],
-                                   homeappliances['brand'],
-                                   homeappliances['vib'],
-                                   homeappliances['enumber'])
-            self.notify_listeners.append(device)
-            devices.append(device)
-        return devices
+        if is_success(response.status_code):
+            data = response.json()
+            devices = list()
+            for homeappliances in data['data']['homeappliances']:
+                device = create_device(HomeConnect.API_URI + "/homeappliances/" + homeappliances['haId'],
+                                       self.auth,
+                                       homeappliances['name'],
+                                       homeappliances['type'],
+                                       homeappliances['haId'],
+                                       homeappliances['brand'],
+                                       homeappliances['vib'],
+                                       homeappliances['enumber'])
+                self.notify_listeners.append(device)
+                devices.append(device)
+            return devices
+        else:
+            logging.warning("error occurred by calling GET " + uri)
+            logging.warning("got " + str(response.status_code) + " " + response.text)
+            raise Exception("error occurred by calling GET " + uri + " Got " + str(response))
 
     def dishwashers(self) -> List[Dishwasher]:
         return [device for device in self.devices() if isinstance(device, Dishwasher)]
