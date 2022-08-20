@@ -196,6 +196,7 @@ class Dishwasher(Device):
         try:
             logging.info("fetch settings, status and selection")
             settings = self._perform_get('/settings')['data']['settings']
+            logging.info("settings, status and selection fetched")
             self.__on_value_changes(settings, "fetched")
 
             status = self._perform_get('/status')['data']['status']
