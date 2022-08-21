@@ -51,16 +51,19 @@ class Device(EventListener):
     def is_dishwasher(self) -> bool:
         return False
 
-    def _perform_get(self, path:str) -> Dict[str, Any]:
+    def _perform_get(self, path:str, ignore_error: bool = False) -> Dict[str, Any]:
         uri = self._uri + path
         #logging.info("query GET " + uri)
         response = requests.get(uri, headers={"Authorization": "Bearer " + self._auth.access_token}, timeout=5000)
         if is_success(response.status_code):
             return response.json()
         else:
-            logging.warning("error occurred by calling GET " + uri)
-            logging.warning("got " + str(response.status_code) + " " + response.text)
-            raise Exception("error occurred by calling GET " + uri + " Got " + str(response))
+            if not ignore_error:
+                logging.warning("error occurred by calling GET " + uri)
+                logging.warning("got " + str(response.status_code) + " " + response.text)
+                raise Exception("error occurred by calling GET " + uri + " Got " + str(response))
+            else:
+                return {}
 
     def _perform_put(self, path:str, data: str, max_trials: int = 3, current_trial: int = 1):
         uri = self._uri + path
@@ -196,7 +199,7 @@ class Dishwasher(Device):
                 self.program_water_forecast_percent = record['value']
             else:
                 print(record)
-                logging.info("unknown changed " + str(record))
+                #logging.info("unknown changed " + str(record))
 
     def __refresh(self, notify: bool = True):
         try:
@@ -212,7 +215,7 @@ class Dishwasher(Device):
             self.__program_selected = record['key']
             self.__on_value_changes(record['options'], "fetched")
 
-            record = self._perform_get('/programs/active')['data']
+            record = self._perform_get('/programs/active', ignore_error = True).get('data', {})
             self.__on_value_changes(record['options'], "fetched")
 
             if notify:
@@ -308,6 +311,7 @@ def create_device(uri: str, auth: Auth, name: str, device_type: str, haid: str, 
         return Device(uri, auth, name, device_type, haid, brand, vib, enumber)
 
 
+
 class HomeConnect:
 
     API_URI = "https://api.home-connect.com/api"
@@ -346,8 +350,8 @@ class HomeConnect:
                                     headers={'Accept': 'text/event-stream', "Authorization": "Bearer " + self.auth.access_token})
             if is_success(response.status_code):
                 client = sseclient.SSEClient(response)
-                logging.info("consuming events...")
 
+                logging.info("consuming events...")
                 for notify_listener in self.notify_listeners:
                     notify_listener.on_connected()
 

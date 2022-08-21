@@ -34,7 +34,8 @@ class Auth:
     def __init__(self, refresh_token: str, client_secret: str):
         self.__refresh_token = refresh_token
         self.__client_secret = client_secret
-        self.__access_token, self.__expiring_date = self.__create_access_token()
+        self.__access_token = ""
+        self.__expiring_date = datetime.now() - timedelta(hours=24)
 
     @staticmethod
     def __print_valid_to(expiring_date: datetime):
