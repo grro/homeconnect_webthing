@@ -107,12 +107,12 @@ class Dishwasher(Device):
         self.__program_progress = 0
         self.__program_active = ""
         self.__program_remote_control_active = ""
-        self.program_remaining_time_sec = ""
+        self.program_remaining_time_sec = 0
         self.program_extra_try = ""
         self.program_hygiene_plus = ""
         self.program_vario_speed_plus = ""
-        self.program_energy_forecast = ""
-        self.program_water_forecast = ""
+        self.program_energy_forecast_percent = 0
+        self.program_water_forecast_percent = 0
 
         self._value_changed_listeners = set()
         super().__init__(uri, auth, name, device_type, haid, brand, vib, enumber)
@@ -191,9 +191,9 @@ class Dishwasher(Device):
             elif record['key'] == 'Dishcare.Dishwasher.Option.VarioSpeedPlus':
                 self.program_vario_speed_plus = record['value']
             elif record['key'] == 'BSH.Common.Option.EnergyForecast':
-                self.program_energy_forecast = record['value']
+                self.program_energy_forecast_percent = record['value']
             elif record['key'] == 'BSH.Common.Option.WaterForecast':
-                self.program_water_forecast = record['value']
+                self.program_water_forecast_percent = record['value']
             else:
                 logging.info("unknown changed " + str(record))
 
