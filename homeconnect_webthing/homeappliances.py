@@ -226,7 +226,8 @@ class Dishwasher(Device):
 
     @property
     def power(self):
-        return self.__power[self.__power.rindex('.')+1:]
+        if len(self.__power) > 0:
+            return self.__power[self.__power.rindex('.')+1:]
 
     @property
     def door(self):
@@ -352,10 +353,11 @@ class HomeConnect:
             if is_success(response.status_code):
                 client = sseclient.SSEClient(response)
 
-                logging.info("consuming events...")
+                logging.info("notify connected")
                 for notify_listener in self.notify_listeners:
                     notify_listener.on_connected()
 
+                logging.info("consuming events...")
                 for event in client.events():
                     if event.event == "NOTIFY":
                         for notify_listener in self.notify_listeners:
