@@ -163,39 +163,40 @@ class Dishwasher(Device):
 
     def __on_value_changes(self, changes: List[Any], ops: str = "updated"):
         for record in changes:
-            if record['key'] == 'BSH.Common.Status.DoorState':
+            key = record.get('key', "")
+            if key == 'BSH.Common.Status.DoorState':
                 self.__door = record['value']
                 logging.info("door state " + ops + ": " + str(self.__door))
-            elif record['key'] == 'BSH.Common.Status.OperationState':
+            elif key == 'BSH.Common.Status.OperationState':
                 self.__operation = record['value']
                 logging.info("operation state " + ops + ": " + str(self.__operation))
-            elif record['key'] == 'BSH.Common.Status.RemoteControlStartAllowed':
+            elif key == 'BSH.Common.Status.RemoteControlStartAllowed':
                 self.remote_start_allowed = record['value']
                 logging.info("remote start allowed " + ops + ": " + str(self.remote_start_allowed))
-            elif record['key'] == 'BSH.Common.Setting.PowerState':
+            elif key == 'BSH.Common.Setting.PowerState':
                 self.__power = record['value']
                 logging.info("power state " + ops + ": " + str(self.__power))
-            elif record['key'] == 'BSH.Common.Root.SelectedProgram':
+            elif key == 'BSH.Common.Root.SelectedProgram':
                 self.__program_selected = record['value']
-            elif record['key'] ==  'BSH.Common.Root.ActiveProgram':
+            elif key ==  'BSH.Common.Root.ActiveProgram':
                 self.__program_active = record['value']
-            elif record['key'] == 'BSH.Common.Option.StartInRelative':
+            elif key == 'BSH.Common.Option.StartInRelative':
                 self.__program_start_in_relative_sec = record['value']
-            elif record['key'] == 'BSH.Common.Option.RemainingProgramTime':
+            elif key == 'BSH.Common.Option.RemainingProgramTime':
                 self.program_remaining_time_sec = record['value']
-            elif record['key'] == 'BSH.Common.Option.ProgramProgress':
+            elif key == 'BSH.Common.Option.ProgramProgress':
                 self.__program_progress = record['value']
-            elif record['key'] == 'BSH.Common.Status.RemoteControlActive':
+            elif key == 'BSH.Common.Status.RemoteControlActive':
                 self.__program_remote_control_active = record['value']
-            elif record['key'] == 'Dishcare.Dishwasher.Option.ExtraDry':
+            elif key == 'Dishcare.Dishwasher.Option.ExtraDry':
                 self.program_extra_try = record['value']
-            elif record['key'] == 'Dishcare.Dishwasher.Option.HygienePlus':
+            elif key == 'Dishcare.Dishwasher.Option.HygienePlus':
                 self.program_hygiene_plus = record['value']
-            elif record['key'] == 'Dishcare.Dishwasher.Option.VarioSpeedPlus':
+            elif key == 'Dishcare.Dishwasher.Option.VarioSpeedPlus':
                 self.program_vario_speed_plus = record['value']
-            elif record['key'] == 'BSH.Common.Option.EnergyForecast':
+            elif key == 'BSH.Common.Option.EnergyForecast':
                 self.program_energy_forecast_percent = record['value']
-            elif record['key'] == 'BSH.Common.Option.WaterForecast':
+            elif key == 'BSH.Common.Option.WaterForecast':
                 self.program_water_forecast_percent = record['value']
             else:
                 print(record)
@@ -213,10 +214,10 @@ class Dishwasher(Device):
 
             record = self._perform_get('/programs/selected')['data']
             self.__program_selected = record['key']
-            self.__on_value_changes(record['options'], "fetched")
+            self.__on_value_changes(record.get('options', {}), "fetched")
 
-            record = self._perform_get('/programs/active', ignore_error = True).get('data', {})
-            self.__on_value_changes(record['options'], "fetched")
+            record = self._perform_get('/programs/active', ignore_error=True).get('data', {})
+            self.__on_value_changes(record.get('options', {}), "fetched")
 
             if notify:
                 self.__notify_listeners()

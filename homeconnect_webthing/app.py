@@ -24,7 +24,7 @@ class Unit:
     StandardOutput=syslog
     StandardError=syslog
     Restart=always
-    RestartSec=3
+    RestartSec=15
     
     [Install]
     WantedBy=multi-user.target
