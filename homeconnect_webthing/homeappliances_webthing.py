@@ -217,7 +217,7 @@ class DishwasherThing(Thing):
                          'readOnly': True,
                      }))
 
-        self.program_energy_forecast = Value(dishwasher.program_water_forecast_percent)
+        self.program_energy_forecast = Value(dishwasher.program_energy_forecast_percent)
         self.add_property(
             Property(self,
                      'program_energy_forecast',
@@ -233,7 +233,7 @@ class DishwasherThing(Thing):
         self.add_property(
             Property(self,
                      'program_water_forecast',
-                     self.start_date,
+                     self.program_water_forecast,
                      metadata={
                          'title': 'Water forcast',
                          "type": "int",
