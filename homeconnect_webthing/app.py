@@ -39,12 +39,13 @@ class Unit:
             status = subprocess.check_output("sudo systemctl is-active " + service, shell=True, stderr=subprocess.STDOUT)
             if status.decode('ascii').strip() == 'active':
                 print(service + " is running")
-                print("try sudo journalctl -f -n 50 -u " + service)
+                print("try")
+                print("sudo journalctl -f -n 250 -u " + service)
                 return
         except subprocess.CalledProcessError as e:
             pass
         print("Warning: " + service + " is not running")
-        system("try sudo journalctl -f -n 50 -u " + service)
+        print("try sudo journalctl -f -n 50 -u " + service)
 
     def register(self, entrypoint: str, port: int, args: Dict[str, Any]):
         service = self.servicename(port)
@@ -78,7 +79,8 @@ class Unit:
 
     def printlog(self, port: int):
         service = self.servicename(port)
-        system("sudo journalctl -f -u " + service)
+        print("sudo journalctl -f -n 250 -u " + service)
+        system("sudo journalctl -f -n 250 -u " + service)
 
     def servicename(self, port: int):
         return self.packagename + "_" + str(port) + ".service"

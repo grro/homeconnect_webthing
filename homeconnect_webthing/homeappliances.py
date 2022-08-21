@@ -303,7 +303,7 @@ class HomeConnect:
         num_reconnects = 0
         while True:
             try:
-                self.__consume_sse_events(uri, read_timeout_sec=4 * 60, max_lifetime_sec=45 * 60)
+                self.__consume_sse_events(uri, read_timeout_sec=15 * 60, max_lifetime_sec=60 * 60)
                 num_reconnects = 0
             except Exception as e:
                 logging.warning("Event stream (" + uri + ") error: ", e)
@@ -355,7 +355,7 @@ class HomeConnect:
                 notify_listener.on_disconnected()
             logging.info("event stream closed")
             if client is not None:
-                    client.close()
+                client.close()
 
     def devices(self) -> List[Device]:
         uri = HomeConnect.API_URI + "/homeappliances"
