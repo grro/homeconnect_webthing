@@ -104,13 +104,16 @@ class Dishwasher(Device):
         self.__program_selected = ""
         self.remote_start_allowed = False
         self.__program_start_in_relative_sec = 0
-        self.__program_remaining_time = ""
         self.__program_progress = 0
         self.__program_active = ""
         self.__program_remote_control_active = ""
+        self.program_remaining_time_sec = ""
         self.program_extra_try = ""
         self.program_hygiene_plus = ""
         self.program_vario_speed_plus = ""
+        self.program_energy_forecast = ""
+        self.program_water_forecast = ""
+
         self._value_changed_listeners = set()
         super().__init__(uri, auth, name, device_type, haid, brand, vib, enumber)
         self.__refresh()
@@ -132,8 +135,7 @@ class Dishwasher(Device):
         self.__refresh()
 
     def on_keep_alive_event(self, event):
-        #logging.debug("keep alive event")
-        pass
+        logging.debug("keep alive event")
 
     def on_notify_event(self, event):
         #logging.debug("notify event: " + str(event.data))
@@ -177,7 +179,7 @@ class Dishwasher(Device):
             elif record['key'] == 'BSH.Common.Option.StartInRelative':
                 self.__program_start_in_relative_sec = record['value']
             elif record['key'] == 'BSH.Common.Option.RemainingProgramTime':
-                self.__program_remaining_time = record['value']
+                self.program_remaining_time_sec = record['value']
             elif record['key'] == 'BSH.Common.Option.ProgramProgress':
                 self.__program_progress = record['value']
             elif record['key'] == 'BSH.Common.Status.RemoteControlActive':
@@ -188,6 +190,10 @@ class Dishwasher(Device):
                 self.program_hygiene_plus = record['value']
             elif record['key'] == 'Dishcare.Dishwasher.Option.VarioSpeedPlus':
                 self.program_vario_speed_plus = record['value']
+            elif record['key'] == 'BSH.Common.Option.EnergyForecast':
+                self.program_energy_forecast = record['value']
+            elif record['key'] == 'BSH.Common.Option.WaterForecast':
+                self.program_water_forecast = record['value']
             else:
                 logging.info("unknown changed " + str(record))
 
@@ -204,6 +210,10 @@ class Dishwasher(Device):
             record = self._perform_get('/programs/selected')['data']
             self.__program_selected = record['key']
             self.__on_value_changes(record['options'], "fetched")
+
+            record = self._perform_get('/programs/active')['data']
+            self.__on_value_changes(record['options'], "fetched")
+
             if notify:
                 self.__notify_listeners()
         except Exception as e:
@@ -300,20 +310,23 @@ class HomeConnect:
     def __listening_for_events(self):
         sleep(3)
         uri = HomeConnect.API_URI + "/homeappliances/events"
-        num_reconnects = 0
+
         while True:
+            start_time = datetime.now()
             try:
-                self.__consume_sse_events(uri, read_timeout_sec=15 * 60, max_lifetime_sec=60 * 60)
-                num_reconnects = 0
+                self.__consume_sse_events(uri, read_timeout_sec=15 * 60, max_lifetime_sec=90 * 60)
             except Exception as e:
                 logging.warning("Event stream (" + uri + ") error: ", e)
-                wait_time_sec = {0: 3, 1:5, 2: 30, 3: 2*60, 4: 5*60}.get(num_reconnects, 20*60)
-                num_reconnects += 1
-                logging.info("try " + str(num_reconnects) + ". reconnect in " + str(wait_time_sec) + " sec")
+                elapsed_min = (datetime.now() - start_time).total_seconds() / 60
+                wait_time_sec = 5 * 60
+                if elapsed_min > 30:
+                    wait_time_sec = 5
+                logging.info("try reconnect in " + str(wait_time_sec) + " sec")
                 sleep(wait_time_sec)
-                logging.info("try reconnect now")
+                logging.info("reconnecting")
 
     def __consume_sse_events(self, uri: str, read_timeout_sec: int, max_lifetime_sec:int):
+        connect_time = datetime.now()
         client = None
         try:
             logging.info("opening event stream connection " + uri + "(read timeout " + str(read_timeout_sec) + " sec, lifetimeout " + str(max_lifetime_sec) + " sec)")
@@ -327,7 +340,6 @@ class HomeConnect:
 
                 for notify_listener in self.notify_listeners:
                     notify_listener.on_connected()
-                connect_time = datetime.now()
 
                 for event in client.events():
                     if event.event == "NOTIFY":
@@ -344,6 +356,7 @@ class HomeConnect:
                             notify_listener.on_event_event(event)
                     else:
                         logging.info("unknown event type " + str(event.event))
+
                     if datetime.now() > (connect_time + timedelta(seconds=max_lifetime_sec)):
                         logging.info("closing event stream. Max lifetime " + str(max_lifetime_sec) + " sec reached (periodic reconnect)")
                         return

@@ -40,7 +40,7 @@ class Unit:
             if status.decode('ascii').strip() == 'active':
                 print(service + " is running")
                 print("try")
-                print("sudo journalctl -f -n 250 -u " + service)
+                print("sudo journalctl -f -n 100 -u " + service)
                 return
         except subprocess.CalledProcessError as e:
             pass
@@ -79,8 +79,8 @@ class Unit:
 
     def printlog(self, port: int):
         service = self.servicename(port)
-        print("sudo journalctl -f -n 250 -u " + service)
-        system("sudo journalctl -f -n 250 -u " + service)
+        print("sudo journalctl -f -n 100 -u " + service)
+        system("sudo journalctl -f -n 100 -u " + service)
 
     def servicename(self, port: int):
         return self.packagename + "_" + str(port) + ".service"

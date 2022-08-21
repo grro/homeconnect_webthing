@@ -205,6 +205,42 @@ class DishwasherThing(Thing):
                          'readOnly': False,
                      }))
 
+        self.program_remaining_time = Value(dishwasher.program_remaining_time_sec)
+        self.add_property(
+            Property(self,
+                     'program_remaining_time',
+                     self.program_remaining_time,
+                     metadata={
+                         'title': 'Remaining time',
+                         "type": "int",
+                         'description': 'The remaining time in sec',
+                         'readOnly': True,
+                     }))
+
+        self.program_energy_forecast = Value(dishwasher.program_energy_forecast)
+        self.add_property(
+            Property(self,
+                     'program_energy_forecast',
+                     self.program_energy_forecast,
+                     metadata={
+                         'title': 'Energy forecase',
+                         "type": "int",
+                         'description': 'The energy forecast',
+                         'readOnly': True,
+                     }))
+
+        self.program_water_forecast = Value(dishwasher.program_water_forecast)
+        self.add_property(
+            Property(self,
+                     'program_water_forecast',
+                     self.start_date,
+                     metadata={
+                         'title': 'Water forcast',
+                         "type": "int",
+                         'description': 'The water forecast',
+                         'readOnly': True,
+                     }))
+
         self.program_progress = Value(dishwasher.program_progress)
         self.add_property(
             Property(self,
@@ -236,6 +272,9 @@ class DishwasherThing(Thing):
         self.program_hygiene_plus.notify_of_external_update(self.dishwasher.program_hygiene_plus)
         self.program_extra_try.notify_of_external_update(self.dishwasher.program_extra_try)
         self.program_progress.notify_of_external_update(self.dishwasher.program_progress)
+        self.program_water_forecast.notify_of_external_update(self.program_water_forecast)
+        self.program_energy_forecast.notify_of_external_update(self.program_energy_forecast)
+        self.program_remaining_time.notify_of_external_update(self.program_remaining_time)
         self.vib.notify_of_external_update(self.dishwasher.vib)
         self.brand.notify_of_external_update(self.dishwasher.brand)
         self.haid.notify_of_external_update(self.dishwasher.haid)
