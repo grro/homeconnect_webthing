@@ -138,15 +138,15 @@ class Dishwasher(Device):
         logging.debug("keep alive event")
 
     def on_notify_event(self, event):
-        #logging.debug("notify event: " + str(event.data))
+        logging.debug("notify event: " + str(event.data))
         self.on__value_changed_event(event)
 
     def on_status_event(self, event):
-        #logging.debug("status event: " + str(event.data))
+        logging.debug("status event: " + str(event.data))
         self.on__value_changed_event(event)
 
     def on_event_event(self, event):
-        #logging.debug("event event: " + str(event.data))
+        logging.debug("event event: " + str(event.data))
         pass
 
     def on__value_changed_event(self, event):
@@ -195,6 +195,7 @@ class Dishwasher(Device):
             elif record['key'] == 'BSH.Common.Option.WaterForecast':
                 self.program_water_forecast_percent = record['value']
             else:
+                print(record)
                 logging.info("unknown changed " + str(record))
 
     def __refresh(self, notify: bool = True):
@@ -225,11 +226,17 @@ class Dishwasher(Device):
 
     @property
     def door(self):
-        return self.__door[self.__door.rindex('.')+1:]
+        if len(self.__door) > 0:
+            return self.__door[self.__door.rindex('.')+1:]
+        else:
+            return ""
 
     @property
     def operation(self):
-        return self.__operation[self.__operation.rindex('.')+1:]
+        if len(self.__operation)> 0:
+            return self.__operation[self.__operation.rindex('.')+1:]
+        else:
+            return ""
 
     @property
     def program_progress(self):
@@ -240,7 +247,10 @@ class Dishwasher(Device):
 
     @property
     def program_selected(self):
-        return self.__program_selected[self.__program_selected.rindex('.')+1:]
+        if len(self.__program_selected) > 0:
+            return self.__program_selected[self.__program_selected.rindex('.')+1:]
+        else:
+            return ""
 
     @property
     def start_date(self) -> str:
