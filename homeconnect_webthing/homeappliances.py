@@ -1,39 +1,16 @@
 import logging
 import requests
-import sseclient
 import json
 from time import sleep
-from abc import ABC
 from threading import Thread
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta
 from homeconnect_webthing.auth import Auth
+from homeconnect_webthing.eventstream import EventListener, ReconnectingEventStream
 
 
 def is_success(status_code: int) -> bool:
     return status_code >= 200 and status_code <= 299
-
-
-
-class EventListener(ABC):
-
-    def on_connected(self):
-        pass
-
-    def on_disconnected(self):
-        pass
-
-    def on_keep_alive_event(self, event):
-        pass
-
-    def on_notify_event(self, event):
-        pass
-
-    def on_status_event(self, event):
-        pass
-
-    def on_event_event(self, event):
-        pass
 
 
 class Device(EventListener):
@@ -321,71 +298,39 @@ class HomeConnect:
     def __init__(self, refresh_token: str, client_secret: str):
         self.notify_listeners: List[EventListener] = list()
         self.auth = Auth(refresh_token, client_secret)
-        Thread(target=self.__listening_for_events, daemon=True).start()
+        Thread(target=self.__start_consuming_events, daemon=True).start()
 
-    def __listening_for_events(self):
-        sleep(3)
-        uri = HomeConnect.API_URI + "/homeappliances/events"
+    def __start_consuming_events(self):
+        sleep(5)
+        ReconnectingEventStream(HomeConnect.API_URI + "/homeappliances/events",
+                                self.auth,
+                                self,
+                                read_timeout_sec=15*60,
+                                max_lifetime_sec=90*60).consume()
 
-        while True:
-            start_time = datetime.now()
-            try:
-                self.__consume_sse_events(uri, read_timeout_sec=15 * 60, max_lifetime_sec=90 * 60)
-            except Exception as e:
-                logging.warning("Event stream (" + uri + ") error: ", e)
-                elapsed_min = (datetime.now() - start_time).total_seconds() / 60
-                wait_time_sec = 5 * 60
-                if elapsed_min > 30:
-                    wait_time_sec = 5
-                logging.info("try reconnect in " + str(wait_time_sec) + " sec")
-                sleep(wait_time_sec)
-                logging.info("reconnecting")
+    def on_connected(self):
+        for notify_listener in self.notify_listeners:
+            notify_listener.on_connected()
 
-    def __consume_sse_events(self, uri: str, read_timeout_sec: int, max_lifetime_sec:int):
-        connect_time = datetime.now()
-        client = None
-        try:
-            logging.info("opening event stream connection " + uri + "(read timeout " + str(read_timeout_sec) + " sec, lifetimeout " + str(max_lifetime_sec) + " sec)")
-            response = requests.get(uri,
-                                    stream=True,
-                                    timeout=read_timeout_sec,
-                                    headers={'Accept': 'text/event-stream', "Authorization": "Bearer " + self.auth.access_token})
-            if is_success(response.status_code):
-                client = sseclient.SSEClient(response)
+    def on_disconnected(self):
+        for notify_listener in self.notify_listeners:
+            notify_listener.on_disconnected()
 
-                logging.info("notify connected")
-                for notify_listener in self.notify_listeners:
-                    notify_listener.on_connected()
+    def on_keep_alive_event(self, event):
+        for notify_listener in self.notify_listeners:
+            notify_listener.on_keep_alive_event(event)
 
-                logging.info("consuming events...")
-                for event in client.events():
-                    if event.event == "NOTIFY":
-                        for notify_listener in self.notify_listeners:
-                            notify_listener.on_notify_event(event)
-                    elif event.event == "KEEP-ALIVE":
-                        for notify_listener in self.notify_listeners:
-                            notify_listener.on_keep_alive_event(event)
-                    elif event.event == "STATUS":
-                        for notify_listener in self.notify_listeners:
-                            notify_listener.on_status_event(event)
-                    elif event.event == "Event":
-                        for notify_listener in self.notify_listeners:
-                            notify_listener.on_event_event(event)
-                    else:
-                        logging.info("unknown event type " + str(event.event))
+    def on_notify_event(self, event):
+        for notify_listener in self.notify_listeners:
+            notify_listener.on_notify_event(event)
 
-                    if datetime.now() > (connect_time + timedelta(seconds=max_lifetime_sec)):
-                        logging.info("closing event stream. Max lifetime " + str(max_lifetime_sec) + " sec reached (periodic reconnect)")
-                        return
-            else:
-                logging.warning("error occurred by opening event stream connection " + uri)
-                logging.warning("got " + str(response.status_code) + " " + response.text)
-        finally:
-            for notify_listener in self.notify_listeners:
-                notify_listener.on_disconnected()
-            logging.info("event stream closed")
-            if client is not None:
-                client.close()
+    def on_status_event(self, event):
+        for notify_listener in self.notify_listeners:
+            notify_listener.on_status_event(event)
+
+    def on_event_event(self, event):
+        for notify_listener in self.notify_listeners:
+            notify_listener.on_event_event(event)
 
     def devices(self) -> List[Device]:
         uri = HomeConnect.API_URI + "/homeappliances"
