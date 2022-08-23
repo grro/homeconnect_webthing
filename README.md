@@ -12,7 +12,7 @@ curl http://192.168.0.23:8744/0/properties
 {
    "device_name":"Geschirrspüler",
    "device_type":"Dishwasher",
-   "device_haid":"BOSCH-SMV68TX06E-68A40E40C208",
+   "device_haid":"BOSCH-SMV68TX06E-70C62F17C8E4",
    "device_brand":"Bosch",
    "device_vib":"SMV68TX06E",
    "device_enumber":"SMV68TX06E/74",
