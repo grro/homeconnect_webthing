@@ -1,10 +1,10 @@
 # homeconnect_webthing
-A webthing adapter of HomeConnect devices 
+A webthing adapter of HomeConnect smart home appliances.
 
 This project provides a [webthing API](https://iot.mozilla.org/wot/) to access [HomeConnect devices](https://api-docs.home-connect.com/). 
 Currently, the device type ***dishwasher*** is supported only 
 
-The homeconnect_webthing package exposes a http webthing endpoint for each detected and supported HomeConnect devices. E.g. 
+The homeconnect_webthing package exposes a http webthing endpoint for each detected and supported smart home appliances. E.g. 
 ```
 # webthing has been started on host 192.168.0.23
 curl http://192.168.0.23:8744/0/properties 
