@@ -101,18 +101,6 @@ class EventStream:
                 pass
         self.stream = None
 
-    def __process_event(self, event):
-        if event.event == "NOTIFY":
-            self.notify_listener.on_notify_event(event)
-        elif event.event == "KEEP-ALIVE":
-            self.notify_listener.on_keep_alive_event(event)
-        elif event.event == "STATUS":
-            self.notify_listener.on_status_event(event)
-        elif event.event == "Event":
-            self.notify_listener.on_event_event(event)
-        else:
-            logging.info("unknown event type " + str(event.event))
-
     def consume(self):
         connect_time = datetime.now()
         self.stream = None
@@ -130,7 +118,18 @@ class EventStream:
 
                 logging.info("consuming events... (read timeout: " + print_duration(self.read_timeout_sec) + ", max lifetime: " + print_duration(self.max_lifetime_sec) + ")")
                 for event in self.stream.events():
-                    self.__process_event(event)
+                    if event.event.upper() == "NOTIFY":
+                        self.notify_listener.on_notify_event(event)
+                    elif event.event.upper() == "KEEP-ALIVE":
+                        self.notify_listener.on_keep_alive_event(event)
+                    elif event.event.upper() == "STATUS":
+                        self.notify_listener.on_status_event(event)
+                    elif event.event.upper() == "EVENT":
+                        self.notify_listener.on_event_event(event)
+                    elif event.event.upper() == "DISCONNECTED":
+                        self.close("disconnected by server")
+                    else:
+                        logging.info("unknown event type " + str(event.event))
 
                     if datetime.now() > (connect_time + timedelta(seconds=self.max_lifetime_sec)):
                         self.close("Max lifetime " + print_duration(self.max_lifetime_sec) + " reached (periodic reconnect)")
