@@ -93,10 +93,10 @@ class Dishwasher(Device):
         self.program_vario_speed_plus = ""
         self.program_energy_forecast_percent = 0
         self.program_water_forecast_percent = 0
-
         self._value_changed_listeners = set()
+        self.last_refresh = datetime.now() - timedelta(hours=9)
         super().__init__(uri, auth, name, device_type, haid, brand, vib, enumber)
-        self.__refresh()
+        self.__refresh(reason="dishwasher appliance initialized")
 
     def is_dishwasher(self) -> bool:
         return True
@@ -112,7 +112,7 @@ class Dishwasher(Device):
 
     def on_connected(self):
         logging.info("refresh state (new event stream connection)")
-        self.__refresh()
+        self.__refresh(reason="on connected")
 
     def on_keep_alive_event(self, event):
         logging.debug("keep alive event")
@@ -179,9 +179,10 @@ class Dishwasher(Device):
                 print(record)
                 #logging.info("unknown changed " + str(record))
 
-    def __refresh(self, notify: bool = True):
+    def __refresh(self, notify: bool = True, reason: str = None):
+        self.last_refresh = datetime.now()
         try:
-            logging.info("fetch settings, status and selection")
+            logging.info("fetch settings, status and selection" + ("" if reason is None else " (" + reason +")"))
             settings = self._perform_get('/settings')['data']['settings']
             logging.info("settings, status and selection fetched")
             self.__on_value_changes(settings, "fetched")
@@ -243,7 +244,7 @@ class Dishwasher(Device):
             return ""
 
     def set_start_date(self, dt: str):
-        self.__refresh(notify=False)
+        self.__refresh(notify=False, reason="startdate updated pre-refresh")
         if self.__operation == "BSH.Common.EnumType.OperationState.Ready":
             remaining_secs_to_wait = int((datetime.fromisoformat(dt) - datetime.now()).total_seconds())
             if remaining_secs_to_wait < 0:
@@ -270,7 +271,7 @@ class Dishwasher(Device):
                 logging.warning("error occurred by starting dishwasher", e)
         else:
             logging.info("ignoring start command. Dishwasher is in state " + self.__operation)
-        self.__refresh()
+        self.__refresh(reason="startdate updated post-refresh")
 
     def __str__(self):
         return "power=" + str(self.power) + \
