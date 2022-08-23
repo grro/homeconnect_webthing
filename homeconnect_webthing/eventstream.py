@@ -126,8 +126,12 @@ class EventStream:
                         self.notify_listener.on_status_event(event)
                     elif event.event.upper() == "EVENT":
                         self.notify_listener.on_event_event(event)
+                    elif event.event.upper() == "CONNECTED":
+                        logging.info("device reconnected " + str(event))
+                        self.notify_listener.on_connected()
                     elif event.event.upper() == "DISCONNECTED":
-                        self.close("disconnected by server")
+                        logging.info("device disconnected " + str(event))
+                        self.notify_listener.on_disconnected()
                     else:
                         logging.info("unknown event type " + str(event.event))
 
