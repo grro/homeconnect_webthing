@@ -56,22 +56,22 @@ class ReconnectingEventStream:
         self.reconnect_delay_short_sec = reconnect_delay_short_sec
         self.reconnect_delay_long_sec = reconnect_delay_long_sec
         self.notify_listener = notify_listener
-        self.current_event_stream = None
+        self.stream = None
         self.is_running = True
 
     def close(self, reason: str = None):
         if reason is not None:
             logging.info("terminating reconnecting event stream " + reason)
         self.is_running = False
-        self.current_event_stream.close()
+        self.stream.close()
 
     def consume(self):
         while self.is_running:
             start_time = datetime.now()
             try:
-                self.current_event_stream = EventStream(self.uri, self.auth, self.notify_listener, self.read_timeout_sec, self.max_lifetime_sec)
-                EventStreamWatchDog(self.current_event_stream, int(self.max_lifetime_sec * 1.1)).start()
-                self.current_event_stream.consume()
+                self.stream = EventStream(self.uri, self.auth, self.notify_listener, self.read_timeout_sec, self.max_lifetime_sec)
+                EventStreamWatchDog(self.stream, int(self.max_lifetime_sec * 1.1)).start()
+                self.stream.consume()
             except Exception as e:
                 logging.warning("error occurred for Event stream " + self.uri, e)
                 elapsed_min = (datetime.now() - start_time).total_seconds() / 60
