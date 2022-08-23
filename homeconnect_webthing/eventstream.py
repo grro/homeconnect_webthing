@@ -59,10 +59,11 @@ class ReconnectingEventStream:
         self.current_event_stream = None
         self.is_running = True
 
-    def terminate(self, reason: str = ""):
-        logging.info("terminating reconnecting event stream " + reason)
+    def close(self, reason: str = None):
+        if reason is not None:
+            logging.info("terminating reconnecting event stream " + reason)
         self.is_running = False
-        self.current_event_stream.terminate()
+        self.current_event_stream.close()
 
     def consume(self):
         while self.is_running:
