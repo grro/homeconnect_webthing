@@ -8,6 +8,16 @@ from datetime import datetime, timedelta
 from homeconnect_webthing.auth import Auth
 
 
+
+def print_duration(time: int):
+    if time > 60 * 60:
+        return str(round(time/(60*60), 1)) + " hour"
+    elif time > 60:
+        return str(round(time/60, 1)) + " min"
+    else:
+        return str(time) + " sec"
+
+
 class EventListener(ABC):
 
     def on_connected(self):
@@ -62,10 +72,10 @@ class ReconnectingEventStream:
                 EventStreamWatchDog(self.current_event_stream, int(self.max_lifetime_sec * 1.1)).start()
                 self.current_event_stream.consume()
             except Exception as e:
-                logging.warning("Event stream (" + self.uri + ") error: ", e)
+                logging.warning("error occurred for Event stream " + self.uri, e)
                 elapsed_min = (datetime.now() - start_time).total_seconds() / 60
                 wait_time_sec = self.reconnect_delay_long_sec if (elapsed_min < 30) else self.reconnect_delay_short_sec
-                logging.info("try reconnect in " + str(wait_time_sec) + " sec")
+                logging.info("try reconnect in " + print_duration(wait_time_sec) + " sec...")
                 sleep(wait_time_sec)
                 logging.info("reconnecting")
 
@@ -78,23 +88,33 @@ class EventStream:
         self.read_timeout_sec = read_timeout_sec
         self.max_lifetime_sec = max_lifetime_sec
         self.notify_listener = notify_listener
-        self.response = None
-        self.is_running = True
+        self.stream = None
 
-    def terminate(self, reason: str = ""):
-        if self.is_running:
-            self.is_running = False
-            logging.info("terminating event stream " + reason)
+    def close(self, reason: str = None):
+        if self.stream is not None:
+            if reason is not None:
+                logging.info("closing event stream " + reason)
             try:
-                if self.response is not None:
-                    self.response.close()
-                    self.response = None
+                self.stream.close()
             except Exception as e:
                 pass
+        self.stream = None
+
+    def __process_event(self, event):
+        if event.event == "NOTIFY":
+            self.notify_listener.on_notify_event(event)
+        elif event.event == "KEEP-ALIVE":
+            self.notify_listener.on_keep_alive_event(event)
+        elif event.event == "STATUS":
+            self.notify_listener.on_status_event(event)
+        elif event.event == "Event":
+            self.notify_listener.on_event_event(event)
+        else:
+            logging.info("unknown event type " + str(event.event))
 
     def consume(self):
         connect_time = datetime.now()
-        client = None
+        self.stream = None
         try:
             logging.info("opening event stream connection " + self.uri + "(read timeout " + str(self.read_timeout_sec) + " sec, lifetimeout " + str(self.max_lifetime_sec) + " sec)")
             self.response = requests.get(self.uri,
@@ -102,37 +122,26 @@ class EventStream:
                                          timeout=self.read_timeout_sec,
                                          headers={'Accept': 'text/event-stream', "Authorization": "Bearer " + self.auth.access_token})
 
-            if self.response.status_code >= 200 and self.response.status_code <= 299:
-                client = sseclient.SSEClient(self.response)
+            if 200 <= self.response.status_code <= 299:
+                self.stream = sseclient.SSEClient(self.response)
                 logging.info("notify event stream connected")
                 self.notify_listener.on_connected()
 
-                logging.info("consuming events...")
-                for event in client.events():
-                    if event.event == "NOTIFY":
-                        self.notify_listener.on_notify_event(event)
-                    elif event.event == "KEEP-ALIVE":
-                        self.notify_listener.on_keep_alive_event(event)
-                    elif event.event == "STATUS":
-                        self.notify_listener.on_status_event(event)
-                    elif event.event == "Event":
-                        self.notify_listener.on_event_event(event)
-                    else:
-                        logging.info("unknown event type " + str(event.event))
+                logging.info("consuming events... (read timeout: " + print_duration(self.read_timeout_sec) + ", max lifetime: " + print_duration(self.max_lifetime_sec) + ")")
+                for event in self.stream.events():
+                    self.__process_event(event)
 
                     if datetime.now() > (connect_time + timedelta(seconds=self.max_lifetime_sec)):
-                        self.terminate("Max lifetime " + str(self.max_lifetime_sec) + " sec reached (periodic reconnect)")
+                        self.close("Max lifetime " + print_duration(self.max_lifetime_sec) + " reached (periodic reconnect)")
 
-                    if self.is_running is False:
+                    if self.stream is None:
                         return
             else:
-                logging.warning("error occurred by opening event stream connection " + self.uri)
-                logging.warning("got " + str(self.response.status_code) + " " + self.response.text)
+                logging.warning("error occurred by opening event stream " + self.uri +
+                                " Got " + str(self.response.status_code) + " " + self.response.text)
         finally:
             self.notify_listener.on_disconnected()
-            logging.info("event stream closed")
-            if client is not None:
-                client.close()
+            self.close()
 
 
 class EventStreamWatchDog:
@@ -146,4 +155,4 @@ class EventStreamWatchDog:
 
     def watch(self):
         sleep(self.max_lifetime_sec)
-        self.event_stream.terminate("by watchdog")
+        self.event_stream.close("by watchdog (life time " + print_duration(self.max_lifetime_sec) + " exceeded)")
