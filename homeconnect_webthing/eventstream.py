@@ -73,9 +73,9 @@ class ReconnectingEventStream:
                 EventStreamWatchDog(self.stream, int(self.max_lifetime_sec * 1.1)).start()
                 self.stream.consume()
             except Exception as e:
-                logging.warning("error occurred for Event stream " + self.uri, e)
+                logging.warning("error occurred for Event stream " + self.uri + " " + str(e))
                 elapsed_min = (datetime.now() - start_time).total_seconds() / 60
-                wait_time_sec = self.reconnect_delay_long_sec if (elapsed_min < 30) else self.reconnect_delay_short_sec
+                wait_time_sec = self.reconnect_delay_long_sec if (elapsed_min < self.read_timeout_sec) else self.reconnect_delay_short_sec
                 logging.info("try reconnect in " + print_duration(wait_time_sec) + " sec...")
                 sleep(wait_time_sec)
                 logging.info("reconnecting")
@@ -105,7 +105,7 @@ class EventStream:
         connect_time = datetime.now()
         self.stream = None
         try:
-            logging.info("opening event stream connection " + self.uri + "(read timeout " + str(self.read_timeout_sec) + " sec, lifetimeout " + str(self.max_lifetime_sec) + " sec)")
+            logging.info("opening event stream connection " + self.uri + "(read timeout: " + str(self.read_timeout_sec) + " sec, life timeout: " + str(self.max_lifetime_sec) + " sec)")
             self.response = requests.get(self.uri,
                                          stream=True,
                                          timeout=self.read_timeout_sec,
@@ -144,8 +144,12 @@ class EventStream:
                 logging.warning("error occurred by opening event stream " + self.uri +
                                 " Got " + str(self.response.status_code) + " " + self.response.text)
         finally:
-            self.notify_listener.on_disconnected()
-            self.close()
+            try:
+                self.close()
+                logging.info("connection closed (elapsed: " + print_duration(int((datetime.now()-connect_time).total_seconds())) + ")")
+            finally:
+                self.notify_listener.on_disconnected()
+
 
 
 class EventStreamWatchDog:

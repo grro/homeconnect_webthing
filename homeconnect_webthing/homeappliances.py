@@ -28,16 +28,16 @@ class Device(EventListener):
     def is_dishwasher(self) -> bool:
         return False
 
-    def _perform_get(self, path:str, ignore_error: bool = False) -> Dict[str, Any]:
+    def _perform_get(self, path:str, raise_error: bool = True) -> Dict[str, Any]:
         uri = self._uri + path
         #logging.info("query GET " + uri)
         response = requests.get(uri, headers={"Authorization": "Bearer " + self._auth.access_token}, timeout=5000)
         if is_success(response.status_code):
             return response.json()
         else:
-            if not ignore_error:
-                logging.warning("error occurred by calling GET " + uri)
-                logging.warning("got " + str(response.status_code) + " " + response.text)
+            logging.warning("error occurred by calling GET " + uri)
+            logging.warning("got " + str(response.status_code) + " " + response.text)
+            if raise_error:
                 raise Exception("error occurred by calling GET " + uri + " Got " + str(response))
             else:
                 return {}
@@ -183,18 +183,18 @@ class Dishwasher(Device):
         self.last_refresh = datetime.now()
         try:
             logging.info("fetch settings, status and selection" + ("" if reason is None else " (" + reason +")"))
-            settings = self._perform_get('/settings')['data']['settings']
+            settings = self._perform_get('/settings', raise_error=False)['data']['settings']
             logging.info("settings, status and selection fetched")
             self.__on_value_changes(settings, "fetched")
 
-            status = self._perform_get('/status')['data']['status']
+            status = self._perform_get('/status', raise_error=False)['data']['status']
             self.__on_value_changes(status, "fetched")
 
-            record = self._perform_get('/programs/selected')['data']
+            record = self._perform_get('/programs/selected', raise_error=False)['data']
             self.__program_selected = record['key']
             self.__on_value_changes(record.get('options', {}), "fetched")
 
-            record = self._perform_get('/programs/active', ignore_error=True).get('data', {})
+            record = self._perform_get('/programs/active', raise_error=False).get('data', {})
             self.__on_value_changes(record.get('options', {}), "fetched")
 
             if notify:
@@ -306,7 +306,7 @@ class HomeConnect:
         ReconnectingEventStream(HomeConnect.API_URI + "/homeappliances/events",
                                 self.auth,
                                 self,
-                                read_timeout_sec=15*60,
+                                read_timeout_sec=3*60,
                                 max_lifetime_sec=90*60).consume()
 
     def on_connected(self):
