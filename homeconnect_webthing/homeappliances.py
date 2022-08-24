@@ -28,19 +28,19 @@ class Device(EventListener):
     def is_dishwasher(self) -> bool:
         return False
 
-    def _perform_get(self, path:str, raise_error: bool = True) -> Dict[str, Any]:
+    def _perform_get(self, path:str, raise_error: bool = True, ignore_error_codes: List[int] = None) -> Dict[str, Any]:
         uri = self._uri + path
         #logging.info("query GET " + uri)
         response = requests.get(uri, headers={"Authorization": "Bearer " + self._auth.access_token}, timeout=5000)
         if is_success(response.status_code):
             return response.json()
         else:
-            logging.warning("error occurred by calling GET " + uri)
-            logging.warning("got " + str(response.status_code) + " " + response.text)
-            if raise_error:
-                raise Exception("error occurred by calling GET " + uri + " Got " + str(response))
-            else:
-                return {}
+            if ignore_error_codes is None or response.status_code not in ignore_error_codes:
+                logging.warning("error occurred by calling GET " + uri)
+                logging.warning("got " + str(response.status_code) + " " + response.text)
+                if raise_error:
+                    raise Exception("error occurred by calling GET " + uri + " Got " + str(response))
+            return {}
 
     def _perform_put(self, path:str, data: str, max_trials: int = 3, current_trial: int = 1):
         uri = self._uri + path
@@ -194,8 +194,9 @@ class Dishwasher(Device):
             self.__program_selected = record['key']
             self.__on_value_changes(record.get('options', {}), "fetched")
 
-            record = self._perform_get('/programs/active', raise_error=False).get('data', {})
+            record = self._perform_get('/programs/active', raise_error=False, ignore_error_codes=[404]).get('data', {})
             self.__on_value_changes(record.get('options', {}), "fetched")
+
 
             if notify:
                 self.__notify_listeners()
