@@ -6,16 +6,8 @@ from time import sleep
 from threading import Thread
 from datetime import datetime, timedelta
 from homeconnect_webthing.auth import Auth
+from homeconnect_webthing.utils import print_duration
 
-
-
-def print_duration(time: int):
-    if time > 60 * 60:
-        return str(round(time/(60*60), 1)) + " hour"
-    elif time > 60:
-        return str(round(time/60, 1)) + " min"
-    else:
-        return str(time) + " sec"
 
 
 class EventListener(ABC):
@@ -73,7 +65,7 @@ class ReconnectingEventStream:
                 EventStreamWatchDog(self.stream, int(self.max_lifetime_sec * 1.1)).start()
                 self.stream.consume()
             except Exception as e:
-                logging.warning("error occurred for Event stream " + self.uri + " " + str(e))
+                logging.warning("error has been occurred for event stream " + self.uri + " " + str(e))
                 elapsed_min = (datetime.now() - start_time).total_seconds() / 60
                 wait_time_sec = self.reconnect_delay_long_sec if (elapsed_min < self.read_timeout_sec) else self.reconnect_delay_short_sec
                 logging.info("try reconnect in " + print_duration(wait_time_sec) + " sec...")
@@ -105,7 +97,7 @@ class EventStream:
         connect_time = datetime.now()
         self.stream = None
         try:
-            logging.info("opening event stream connection " + self.uri + "(read timeout: " + str(self.read_timeout_sec) + " sec, life timeout: " + str(self.max_lifetime_sec) + " sec)")
+            logging.info("opening event stream connection " + self.uri + " (read timeout: " + print_duration(self.read_timeout_sec) + " sec, life timeout: " + print_duration(self.max_lifetime_sec) + " sec)")
             self.response = requests.get(self.uri,
                                          stream=True,
                                          timeout=self.read_timeout_sec,
@@ -116,7 +108,7 @@ class EventStream:
                 logging.info("notify event stream connected")
                 self.notify_listener.on_connected()
 
-                logging.info("consuming events... (read timeout: " + print_duration(self.read_timeout_sec) + ", max lifetime: " + print_duration(self.max_lifetime_sec) + ")")
+                logging.info("consuming events...")
                 for event in self.stream.events():
                     if event.event.upper() == "NOTIFY":
                         self.notify_listener.on_notify_event(event)
@@ -146,7 +138,7 @@ class EventStream:
         finally:
             try:
                 self.close()
-                logging.info("connection closed (elapsed: " + print_duration(int((datetime.now()-connect_time).total_seconds())) + ")")
+                logging.info("event stream closed (elapsed: " + print_duration(int((datetime.now()-connect_time).total_seconds())) + ")")
             finally:
                 self.notify_listener.on_disconnected()
 

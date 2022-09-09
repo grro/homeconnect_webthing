@@ -2,7 +2,7 @@
 A webthing adapter of HomeConnect smart home appliances.
 
 This project provides a [webthing API](https://iot.mozilla.org/wot/) to access [HomeConnect devices](https://api-docs.home-connect.com/). 
-Currently, the device type ***dishwasher*** is supported only 
+Currently, the device types ***Dishwasher*** and ***Dryer*** are supported only 
 
 The homeconnect_webthing package exposes a http webthing endpoint for each detected and supported smart home appliances. E.g. 
 ```

@@ -14,7 +14,7 @@ class Auth:
     DEFAULT_FILENAME = "homeconnect_oauth.txt"
 
     @staticmethod
-    def create(client_id: str, client_secret:str, scope: str = "IdentifyAppliance%20Dishwasher"):
+    def create(client_id: str, client_secret:str, scope: str = "IdentifyAppliance%20Dishwasher%20Dryer"):
         uri = Auth.URI + "/oauth/authorize?response_type=code&client_id=" + client_id + "&scope=" + scope
         webbrowser.open(uri)
 
