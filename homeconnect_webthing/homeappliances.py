@@ -404,9 +404,9 @@ class Dryer(Appliance):
         if self._operation in ["BSH.Common.EnumType.OperationState.Ready", '']:
             program_duration_sec = self.__program_finish_in_relative_sec
             start_date = datetime.fromisoformat(end_date) - timedelta(seconds=program_duration_sec)
-            logging.info("end_date " + str(end_date))
-            logging.info("program_duration_sec " + str(program_duration_sec))
-            logging.info("computed start_date " + str(start_date.isoformat()))
+            logging.info("WRITE_END_DATE end_date " + str(end_date))
+            logging.info("WRITE_END_DATE program_duration_sec " + str(program_duration_sec))
+            logging.info("WRITE_END_DATE computed start_date " + str(start_date.isoformat()))
             self.write_start_date(start_date.isoformat())
 
     def write_start_date(self, start_date: str):
@@ -417,10 +417,10 @@ class Dryer(Appliance):
             self.__update_target_date_options(targetdate)
             program_duration_sec = self.__program_finish_in_relative_sec
             remaining_secs_to_finish = targetdate.remaining_secs_to_finish(program_duration_sec)
-            logging.info("start_date " + str(start_date))
-            logging.info("remaining secs to start " + str(targetdate.remaining_secs_to_start()))
-            logging.info("program_finish_in_relative_sec " + str(self.__program_finish_in_relative_sec))
-            logging.info("remaining_secs_to_finish " + str(remaining_secs_to_finish))
+            logging.info("WRITE_START_DATE start_date " + str(start_date))
+            logging.info("WRITE_START_DATE remaining secs to start " + str(targetdate.remaining_secs_to_start()))
+            logging.info("WRITE_START_DATE program_finish_in_relative_sec " + str(self.__program_finish_in_relative_sec))
+            logging.info("WRITE_START_DATE remaining_secs_to_finish " + str(remaining_secs_to_finish))
 
             data = {
                 "data": {
