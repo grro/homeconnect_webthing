@@ -1,7 +1,6 @@
 import logging
 import requests
 import json
-from abc import abstractmethod
 from time import sleep
 from threading import Thread
 from typing import List, Optional, Dict, Any
@@ -21,6 +20,30 @@ def is_success(status_code: int) -> bool:
     return status_code >= 200 and status_code <= 299
 
 
+class Targetdate:
+
+    def __init__(self, start_date: str):
+        self.start_date = start_date
+        self.unit = "seconds"
+        self.max = 86000
+        self.stepsize = 60
+
+    def remaining_secs_to_start(self) -> int:
+        remaining_secs_to_wait = int((datetime.fromisoformat(self.start_date) - datetime.now()).total_seconds())
+        remaining_secs_to_start = int(remaining_secs_to_wait/self.stepsize) * self.stepsize
+        if remaining_secs_to_start < 0:
+            remaining_secs_to_start = 0
+        if remaining_secs_to_start > self.max:
+            remaining_secs_to_start = self.max
+        return remaining_secs_to_start
+
+    def remaining_secs_to_finish(self, program_duration_sec: int) -> int:
+        remaining_secs_to_finish = self.remaining_secs_to_start() + program_duration_sec
+        if remaining_secs_to_finish > self.max:
+            remaining_secs_to_finish = self.max
+        return remaining_secs_to_finish
+
+
 class Appliance(EventListener):
 
     def __init__(self, device_uri: str, auth: Auth, name: str, device_type: str, haid: str, brand: str, vib: str, enumber: str):
@@ -35,17 +58,21 @@ class Appliance(EventListener):
         self.__value_changed_listeners = set()
         self.last_refresh = datetime.now() - timedelta(hours=9)
         self.remote_start_allowed = False
-        self.program_remaining_time_sec = 0
-        self.__program_selected = ""
+        self._program_selected = ""
+        self.__program_progress = 0
+        self.__program_remote_control_active = ""
+        self.__program_local_control_active = ""
         self._power = ""
         self._door = ""
         self._operation = ""
-
+        self._refresh(reason=self.name + " appliance initialized")
 
     @property
     def power(self):
         if len(self._power) > 0:
             return self._power[self._power.rindex('.')+1:]
+        else:
+            return "Off"
 
     @property
     def door(self):
@@ -63,18 +90,17 @@ class Appliance(EventListener):
 
     @property
     def program_selected(self):
-        if len(self.__program_selected) > 0:
-            return self.__program_selected[self.__program_selected.rindex('.')+1:]
+        if len(self._program_selected) > 0:
+            return self._program_selected[self._program_selected.rindex('.') + 1:]
         else:
             return ""
 
-    @abstractmethod
-    def read_start_date(self) -> str:
-        pass
-
-    @abstractmethod
-    def write_start_date(self, dt: str):
-        pass
+    @property
+    def program_progress(self):
+        if self.operation.lower() == 'run':
+            return self.__program_progress
+        else:
+            return 0
 
     def register_value_changed_listener(self, value_changed_listener):
         self.__value_changed_listeners.add(value_changed_listener)
@@ -85,7 +111,7 @@ class Appliance(EventListener):
             value_changed_listener()
 
     def on_connected(self):
-        logging.info("refresh " + self.name + " state (new event stream connection)")
+        logging.info("refresh " + self.name + " state (new event stream has been established)")
         self._refresh(reason="on connected")
 
     def on_keep_alive_event(self, event):
@@ -114,33 +140,44 @@ class Appliance(EventListener):
 
     def _on_values_changed(self, changes: List[Any], ops: str = "updated"):
         for record in changes:
-            key = record.get('key', "")
-            value =  record.get('value', None)
+            key = str(record.get('key', ""))
+            value = record.get('value', None)
             if value is None:
-                logging.warning("key with One value " + key)
+                logging.warning("key without value " + key)
             else:
-                if key == 'BSH.Common.Status.DoorState':
-                    self._door = value
-                    logging.info(self.name + " door state " + ops + ": " + str(self._door))
-                elif key == 'BSH.Common.Status.OperationState':
-                    self._operation = value
-                    logging.info(self.name + " operation state " + ops + ": " + str(self._operation))
-                elif key == 'BSH.Common.Status.RemoteControlStartAllowed':
-                    self.remote_start_allowed = value
-                    logging.info(self.name + " remote start allowed " + ops + ": " + str(self.remote_start_allowed))
-                elif key == 'BSH.Common.Setting.PowerState':
-                    self._power = value
-                    logging.info(self.name + " power state " + ops + ": " + str(self._power))
-                elif key == 'BSH.Common.Option.RemainingProgramTime':
-                    self.program_remaining_time_sec = value
-                elif key == 'BSH.Common.Root.SelectedProgram':
-                    self.__program_selected = value
-                else:
-                    self._do_on_value_changed(key, value, ops)
+                handled = self._on_value_changed(key, value, ops)
+                if not handled:
+                    logging.warning(self.name + " unhandled key " + key + " " + str(value))
 
-    @abstractmethod
-    def _do_on_value_changed(self, key: str, value: str, ops: str):
-        return False
+    def _on_value_changed(self, key: str, value: str, ops: str) -> bool:
+        if key == 'BSH.Common.Status.DoorState':
+            self._door = value
+            logging.info(self.name + " field 'door state' " + ops + ": " + str(value))
+        elif key == 'BSH.Common.Status.OperationState':
+            self._operation = value
+            logging.info(self.name + " field 'operation state' " + ops + ": " + str(value))
+        elif key == 'BSH.Common.Status.RemoteControlStartAllowed':
+            self.remote_start_allowed = value
+            logging.info(self.name + " field 'remote start allowed' " + ops + ": " + str(value))
+        elif key == 'BSH.Common.Setting.PowerState':
+            self._power = value
+            logging.info(self.name + " field 'power state' " + ops + ": " + str(value))
+        elif key == 'BSH.Common.Root.SelectedProgram':
+            self._program_selected = value
+            logging.info(self.name + " field 'selected program' " + ops + ": " + str(value))
+        elif key == 'BSH.Common.Option.ProgramProgress':
+            self.__program_progress = value
+            logging.info(self.name + " field 'program progress' " + ops + ": " + str(value))
+        elif key == 'BSH.Common.Status.LocalControlActive':
+            self.__program_local_control_active = value
+            logging.info(self.name + " field 'local control active' " + ops + ": " + str(value))
+        elif key == 'BSH.Common.Status.RemoteControlActive':
+            self.__program_remote_control_active = value
+            logging.info(self.name + " field 'remote control active' " + ops + ": " + str(value))
+        else:
+            return False
+        return True
+
 
     def _refresh(self, notify: bool = True, reason: str = None):
         self.last_refresh = datetime.now()
@@ -151,13 +188,24 @@ class Appliance(EventListener):
         except Exception as e:
             logging.warning("error occurred on refreshing", e)
 
-    @abstractmethod
     def _do_refresh(self, reason: str = None):
-        pass
+        settings = self._perform_get('/settings', ignore_error_codes=[409]).get('data', {}).get('settings', {})
+        logging.info("fetching settings, status and selection for " + self.name)
+        self._on_values_changed(settings, "setting fetched")
 
-    def _perform_get(self, path:str, raise_error: bool = True, ignore_error_codes: List[int] = None) -> Dict[str, Any]:
+        status = self._perform_get('/status', ignore_error_codes=[409]).get('data', {}).get('status', {})
+        self._on_values_changed(status, "status fetched")
+
+        record = self._perform_get('/programs/selected', ignore_error_codes=[409]).get('data', {})
+        self._on_program_selected(record.get('key', ""), record.get('options', {}))
+
+    def _on_program_selected(self, selected_program, options):
+        self._program_selected = selected_program
+        logging.info(self.name + " program selected: " + str(self._program_selected))
+        self._on_values_changed(options, "option fetched")
+
+    def _perform_get(self, path:str, ignore_error_codes: List[int] = None) -> Dict[str, Any]:
         uri = self._device_uri + path
-        #logging.info("query GET " + uri)
         response = requests.get(uri, headers={"Authorization": "Bearer " + self._auth.access_token}, timeout=5000)
         if is_success(response.status_code):
             return response.json()
@@ -165,8 +213,7 @@ class Appliance(EventListener):
             if ignore_error_codes is None or response.status_code not in ignore_error_codes:
                 logging.warning("error occurred by calling GET " + uri)
                 logging.warning("got " + str(response.status_code) + " " + response.text)
-                if raise_error:
-                    raise Exception("error occurred by calling GET " + uri + " Got " + str(response))
+                raise Exception("error occurred by calling GET " + uri + " Got " + str(response))
             return {}
 
     def _perform_put(self, path:str, data: str, max_trials: int = 3, current_trial: int = 1):
@@ -200,61 +247,46 @@ class Dishwasher(Appliance):
 
     def __init__(self, device_uri: str, auth: Auth, name: str, device_type: str, haid: str, brand: str, vib: str, enumber: str):
         self.__program_start_in_relative_sec = 0
-        self.__program_progress = 0
+        self.program_remaining_time_sec = 0
         self.__program_active = ""
-        self.__program_remote_control_active = ""
         self.program_extra_try = ""
         self.program_hygiene_plus = ""
         self.program_vario_speed_plus = ""
         self.program_energy_forecast_percent = 0
         self.program_water_forecast_percent = 0
         super().__init__(device_uri, auth, name, device_type, haid, brand, vib, enumber)
-        self._refresh(reason="dishwasher appliance initialized")
 
-    def _do_on_value_changed(self, key: str, value: str, ops: str):
-        if key ==  'BSH.Common.Root.ActiveProgram':
+    def _on_value_changed(self, key: str, value: str, ops: str) -> bool:
+        if key == 'BSH.Common.Root.ActiveProgram':
             self.__program_active = value
+            logging.info(self.name + " field 'active program' " + ops + ": " + str(value))
         elif key == 'BSH.Common.Option.StartInRelative':
             self.__program_start_in_relative_sec = value
-        elif key == 'BSH.Common.Option.ProgramProgress':
-            self.__program_progress = value
-        elif key == 'BSH.Common.Status.RemoteControlActive':
-            self.__program_remote_control_active = value
+            logging.info(self.name + " field 'start in relative' " + ops + ": " + str(value))
         elif key == 'Dishcare.Dishwasher.Option.ExtraDry':
             self.program_extra_try = value
         elif key == 'Dishcare.Dishwasher.Option.HygienePlus':
-            self.program_hygiene_plus =value
+            self.program_hygiene_plus = value
         elif key == 'Dishcare.Dishwasher.Option.VarioSpeedPlus':
             self.program_vario_speed_plus = value
         elif key == 'BSH.Common.Option.EnergyForecast':
             self.program_energy_forecast_percent = value
         elif key == 'BSH.Common.Option.WaterForecast':
             self.program_water_forecast_percent = value
+        elif key == 'BSH.Common.Option.RemainingProgramTime':
+            self.program_remaining_time_sec = value
+            logging.info(self.name + " field 'remaining program time' " + ops + ": " + str(value))
         else:
-            logging.info("unhandled " + key + " -> " + value)
+            return super()._on_value_changed(key, value, ops)
+        return True
+
+    def _on_program_selected(self, selected_program, options):
+        super()._on_program_selected(selected_program, options)
 
     def _do_refresh(self, reason: str = None):
-        logging.info("fetch " + self.name + " settings, status and selection" + ("" if reason is None else " (" + reason +")"))
-        settings = self._perform_get('/settings', raise_error=False)['data']['settings']
-        logging.info("settings, status and selection fetched")
-        self._on_values_changed(settings, "fetched")
-
-        status = self._perform_get('/status', raise_error=False)['data']['status']
-        self._on_values_changed(status, "fetched")
-
-        record = self._perform_get('/programs/selected', raise_error=False)['data']
-        self.__program_selected = record['key']
+        super()._do_refresh(reason)
+        record = self._perform_get('/programs/active', ignore_error_codes=[404]).get('data', {})
         self._on_values_changed(record.get('options', {}), "fetched")
-
-        record = self._perform_get('/programs/active', raise_error=False, ignore_error_codes=[404]).get('data', {})
-        self._on_values_changed(record.get('options', {}), "fetched")
-
-    @property
-    def program_progress(self):
-        if self.operation.lower() == 'run':
-            return self.__program_progress
-        else:
-            return 0
 
     def read_start_date(self) -> str:
         start_date = datetime.now() + timedelta(seconds=self.__program_start_in_relative_sec)
@@ -263,21 +295,14 @@ class Dishwasher(Appliance):
         else:
             return ""
 
-    def write_start_date(self, dt: str):
-        self._refresh(notify=False, reason="startdate updated pre-refresh")
+    def write_start_date(self, start_date: str):
+        self._refresh(notify=False, reason=self.name + " write start date pre-refresh")
 
         if self._operation in ["BSH.Common.EnumType.OperationState.Ready"]:
-            remaining_secs_to_wait = int((datetime.fromisoformat(dt) - datetime.now()).total_seconds())
-            if remaining_secs_to_wait < 0:
-                logging.warning("negative delay " + str(remaining_secs_to_wait) + " (start date: " + dt + ") delay set to 5 sec")
-                remaining_secs_to_wait = 5
-            if remaining_secs_to_wait > 86000:
-                logging.warning("large delay " + str(remaining_secs_to_wait) + " (start date: " + dt + ") reduced to 86000")
-                remaining_secs_to_wait = 86000
-
+            remaining_secs_to_wait = Targetdate(start_date).remaining_secs_to_finish(self.program_remaining_time_sec)
             data = {
                 "data": {
-                    "key": self.__program_selected,
+                    "key": self._program_selected,
                     "options": [{
                                     "key": "BSH.Common.Option.StartInRelative",
                                     "value": remaining_secs_to_wait,
@@ -287,13 +312,12 @@ class Dishwasher(Appliance):
             }
             try:
                 self._perform_put("/programs/active", json.dumps(data, indent=2), max_trials=3)
-                logging.info(self.name + " program " + self.program_selected + " starts in " + print_duration(remaining_secs_to_wait))
+                logging.info(self.name + " program " + self.program_selected + " starts in " + print_duration(remaining_secs_to_wait) + " (program duration " + print_duration(self.program_remaining_time_sec) + ")")
             except Exception as e:
                 logging.warning("error occurred by starting " + self.name, e)
         else:
-            logging.warning("ignoring start command. " +self.name + " is in state " + self._operation)
-        self._refresh(reason="start date updated post-refresh")
-
+            logging.warning("ignoring start command. " + self.name + " is in state " + self._operation)
+        self._refresh(reason=self.name + " write start date post-refresh")
 
 
 
@@ -302,48 +326,101 @@ class Dryer(Appliance):
     def __init__(self, device_uri: str, auth: Auth, name: str, device_type: str, haid: str, brand: str, vib: str, enumber: str):
         self.__program_finish_in_relative_sec = 0
         super().__init__(device_uri, auth, name, device_type, haid, brand, vib, enumber)
-        self._refresh(reason="dryer appliance initialized")
+        self.child_lock = False
+        self.program_gentle = False
+        self.__program_drying_target = ""
+        self.__program_drying_target_adjustment = ""
+        self.__program_wrinkle_guard = ""
+        self.__program_duration_sec = 0
 
-    def _do_on_value_changed(self, key: str, value: str, ops: str):
-        logging.info("unhandled " + key + " -> " + value)
+    @property
+    def program_wrinkle_guard(self) -> str:
+        if len(self.__program_wrinkle_guard) > 0:
+            return self.__program_wrinkle_guard[self.__program_wrinkle_guard.rindex('.') + 1:]
+        else:
+            return ""
 
-    def _do_refresh(self, reason: str = None):
-        logging.info("fetch settings, status and selection" + ("" if reason is None else " (" + reason +")"))
-        settings = self._perform_get('/settings', raise_error=False)['data']['settings']
-        logging.info("settings, status and selection fetched")
-        self._on_values_changed(settings, "fetched")
+    @property
+    def program_drying_target(self) -> str:
+        if len(self.__program_drying_target) > 0:
+            return self.__program_drying_target[self.__program_drying_target.rindex('.') + 1:]
+        else:
+            return ""
 
-        status = self._perform_get('/status', raise_error=False)['data']['status']
-        self._on_values_changed(status, "fetched")
+    @property
+    def program_drying_target_adjustment(self) -> str:
+        if len(self.__program_drying_target_adjustment) > 0:
+            return self.__program_drying_target_adjustment[self.__program_drying_target_adjustment.rindex('.') + 1:]
+        else:
+            return ""
 
-        record = self._perform_get('/programs/selected', raise_error=False)['data']
-        self.__program_selected = record['key']
-        self._on_values_changed(record.get('options', {}), "fetched")
+    def _on_value_changed(self, key: str, value: str, ops: str) -> bool:
+        logging.debug(self.name + " " + key + "=" + str(value))
+        if key == 'BSH.Common.Option.FinishInRelative':
+            self.__program_finish_in_relative_sec = value
+            logging.info(self.name + " field 'finish in relative' " + ops + ": " + str(value))
+        elif key == 'BSH.Common.Setting.ChildLock':
+            self.child_lock = value
+            logging.info(self.name + " field 'child lock' " + ops + ": " + str(value))
+        elif key == 'LaundryCare.Dryer.Option.DryingTarget':
+            self.__program_drying_target = value
+        elif key == 'LaundryCare.Dryer.Option.DryingTargetAdjustment':
+            self.__program_drying_target_adjustment = value
+        elif key == 'LaundryCare.Dryer.Option.Gentle':
+            self.program_gentle = value
+        elif key == 'LaundryCare.Dryer.Option.WrinkleGuard':
+            self.__program_wrinkle_guard = value
+        else:
+            return super()._on_value_changed(key, value, ops)
+        return True
 
-        record = self._perform_get('/programs/active', raise_error=False, ignore_error_codes=[404]).get('data', {})
-        self._on_values_changed(record.get('options', {}), "fetched")
+    def read_end_date(self) -> str:
+        end_date = datetime.now() + timedelta(seconds=self.__program_finish_in_relative_sec)
+        if end_date > datetime.now():
+            return end_date.strftime("%Y-%m-%dT%H:%M")
+        else:
+            return ""
 
     def read_start_date(self) -> str:
-        start_date = datetime.now() + timedelta(seconds=self.__program_finish_in_relative_sec) - timedelta(seconds=self.program_remaining_time_sec)
+        end_date = datetime.now() + timedelta(seconds=self.__program_finish_in_relative_sec)
+        start_date = end_date - timedelta(seconds=self.__program_duration_sec)
         if start_date > datetime.now():
             return start_date.strftime("%Y-%m-%dT%H:%M")
         else:
             return ""
 
-    def write_start_date(self, dt: str):
-        self._refresh(notify=False, reason="start date updated pre-refresh")
+    def __update_target_date_options(self, targetdate: Targetdate):
+        if len(self._program_selected) > 0:
+            d = self._perform_get('/programs/available/' + self._program_selected)
+            print(d)
+            for options in self._perform_get('/programs/available/' + self._program_selected).get('data', {}).get('options', []):
+                if options.get('key', "") == 'BSH.Common.Option.FinishInRelative':
+                    targetdate.unit = options.get("unit", targetdate.unit)
+                    constrains = options.get("constraints", {})
+                    targetdate.max = constrains.get("max", targetdate.max)
+                    targetdate.stepsize = constrains.get("stepsize", targetdate.stepsize)
 
+    def write_end_date(self, end_date: str):
         if self._operation in ["BSH.Common.EnumType.OperationState.Ready", '']:
-            remaining_secs_to_wait = int((datetime.fromisoformat(dt) - datetime.now()).total_seconds()) + self.program_remaining_time_sec
-            if remaining_secs_to_wait < 0:
-                remaining_secs_to_wait = 5
-            if remaining_secs_to_wait > 86000:
-                logging.warning("large delay " + str(remaining_secs_to_wait) + " (start date: " + dt + ") reduced to 86000")
-                remaining_secs_to_wait = 86000
+            program_duration_sec = self.__program_finish_in_relative_sec
+            start_date = datetime.fromisoformat(end_date) - timedelta(seconds=program_duration_sec)
+            self.write_start_date(start_date.isoformat())
+
+    def write_start_date(self, start_date: str):
+        self._refresh(notify=False, reason=self.name + " write start date pre-refresh")
+        if self._operation in ["BSH.Common.EnumType.OperationState.Ready", '']:
+            self.__program_duration_sec = self.__program_finish_in_relative_sec
+            targetdate = Targetdate(start_date)
+            self.__update_target_date_options(targetdate)
+            program_duration_sec = self.__program_finish_in_relative_sec
+            remaining_secs_to_wait = targetdate.remaining_secs_to_finish(program_duration_sec)
+            print("remaining secs to start " + str(targetdate.remaining_secs_to_start()))
+            print("program_finish_in_relative_sec " + str(self.__program_finish_in_relative_sec))
+            print("remaining_secs_to_wait " + str(remaining_secs_to_wait))
 
             data = {
                 "data": {
-                    "key": self.__program_selected,
+                    "key": self._program_selected,
                     "options": [{
                         "key": "BSH.Common.Option.FinishInRelative",
                         "value": remaining_secs_to_wait,
@@ -353,22 +430,22 @@ class Dryer(Appliance):
             }
             try:
                 self._perform_put("/programs/active", json.dumps(data, indent=2), max_trials=3)
-                logging.info(self.name + " program " + "self.program_selected" + " starts in " + print_duration(remaining_secs_to_wait))
+                logging.info(self.name + " program " + "self.program_selected" + " starts in " + print_duration(targetdate.remaining_secs_to_start()) + " (duration: " + print_duration(program_duration_sec) + ")")
             except Exception as e:
                 logging.warning("error occurred by starting " + self.name, e)
         else:
             logging.warning("ignoring start command. " + self.name + " is in state " + self._operation)
-        self._refresh(reason="start date updated post-refresh")
+        self._refresh(reason=self.name + " start date updated post-refresh")
 
 
 
-def create_appliance(uri: str, auth: Auth, name: str, device_type: str, haid: str, brand: str, vib: str, enumber: str) -> Appliance:
+def create_appliance(uri: str, auth: Auth, name: str, device_type: str, haid: str, brand: str, vib: str, enumber: str) -> Optional[Appliance]:
     if device_type.lower() == DISHWASHER:
         return Dishwasher(uri, auth, name, device_type, haid, brand, vib, enumber)
     elif device_type.lower() == DRYER:
         return Dryer(uri, auth, name, device_type, haid, brand, vib, enumber)
     else:
-        return Appliance(uri, auth, name, device_type, haid, brand, vib, enumber)
+        return None
 
 
 
@@ -388,7 +465,7 @@ class HomeConnect:
                                 self.auth,
                                 self,
                                 read_timeout_sec=3*60,
-                                max_lifetime_sec=90*60).consume()
+                                max_lifetime_sec=170*60).consume()
 
     def on_connected(self):
         for notify_listener in self.notify_listeners:
@@ -430,8 +507,9 @@ class HomeConnect:
                                           homeappliances['brand'],
                                           homeappliances['vib'],
                                           homeappliances['enumber'])
-                self.notify_listeners.append(device)
-                devices.append(device)
+                if device is not None:
+                    self.notify_listeners.append(device)
+                    devices.append(device)
             return devices
         else:
             logging.warning("error occurred by calling GET " + uri)

@@ -40,7 +40,7 @@ class ReconnectingEventStream:
                  read_timeout_sec: int,
                  max_lifetime_sec:int,
                  reconnect_delay_short_sec: int = 5,
-                 reconnect_delay_long_sec: int = 5 * 60):
+                 reconnect_delay_long_sec: int = 3 * 60):
         self.uri = uri
         self.auth = auth
         self.read_timeout_sec = read_timeout_sec
@@ -97,7 +97,7 @@ class EventStream:
         connect_time = datetime.now()
         self.stream = None
         try:
-            logging.info("opening event stream connection " + self.uri + " (read timeout: " + print_duration(self.read_timeout_sec) + " sec, life timeout: " + print_duration(self.max_lifetime_sec) + " sec)")
+            logging.info("opening event stream connection " + self.uri + " (read timeout: " + print_duration(self.read_timeout_sec) + ", life timeout: " + print_duration(self.max_lifetime_sec) + ")")
             self.response = requests.get(self.uri,
                                          stream=True,
                                          timeout=self.read_timeout_sec,
@@ -105,7 +105,6 @@ class EventStream:
 
             if 200 <= self.response.status_code <= 299:
                 self.stream = sseclient.SSEClient(self.response)
-                logging.info("notify event stream connected")
                 self.notify_listener.on_connected()
 
                 logging.info("consuming events...")
@@ -133,8 +132,10 @@ class EventStream:
                     if self.stream is None:
                         return
             else:
-                logging.warning("error occurred by opening event stream " + self.uri +
-                                " Got " + str(self.response.status_code) + " " + self.response.text)
+                if self.response.headers.get('Content-Type', 'text/event-stream').lower() == 'text/event-stream':
+                    raise Exception("opening event stream returns " + str(self.response.status_code))
+                else:
+                    raise Exception("opening event stream returns " + str(self.response.status_code) + " " + self.response.text)
         finally:
             try:
                 self.close()
