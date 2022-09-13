@@ -5,9 +5,8 @@ from abc import ABC, abstractmethod
 from time import sleep
 from threading import Thread
 from datetime import datetime, timedelta
-from typing import Dict
 from homeconnect_webthing.auth import Auth
-from homeconnect_webthing.utils import print_duration
+from homeconnect_webthing.utils import print_duration, DailyRequestCounter
 
 
 
@@ -42,12 +41,14 @@ class ReconnectingEventStream:
                  uri: str,
                  auth: Auth,
                  notify_listener,
+                 request_counter: DailyRequestCounter,
                  read_timeout_sec: int,
                  max_lifetime_sec:int):
         self.uri = uri
         self.auth = auth
         self.read_timeout_sec = read_timeout_sec
         self.max_lifetime_sec = max_lifetime_sec
+        self.request_counter = request_counter
         self.notify_listener = notify_listener
         self.stream = None
         self.is_running = True
@@ -62,7 +63,7 @@ class ReconnectingEventStream:
         while self.is_running:
             start_time = datetime.now()
             try:
-                self.stream = EventStream(self.uri, self.auth, self.notify_listener, self.read_timeout_sec, self.max_lifetime_sec)
+                self.stream = EventStream(self.uri, self.auth, self.notify_listener, self.request_counter, self.read_timeout_sec, self.max_lifetime_sec)
                 EventStreamWatchDog(self.stream, int(self.max_lifetime_sec * 1.1)).start()
                 self.stream.consume()
             except Exception as e:
@@ -80,11 +81,12 @@ class ReconnectingEventStream:
 
 class EventStream:
 
-    def __init__(self, uri: str, auth: Auth, notify_listener, read_timeout_sec: int, max_lifetime_sec:int):
+    def __init__(self, uri: str, auth: Auth, notify_listener, request_counter: DailyRequestCounter, read_timeout_sec: int, max_lifetime_sec:int):
         self.uri = uri
         self.auth = auth
         self.read_timeout_sec = read_timeout_sec
         self.max_lifetime_sec = max_lifetime_sec
+        self.request_counter = request_counter
         self.notify_listener = notify_listener
         self.stream = None
 
@@ -103,6 +105,7 @@ class EventStream:
         self.stream = None
         try:
             logging.info("opening event stream connection " + self.uri + " (read timeout: " + print_duration(self.read_timeout_sec) + ", life timeout: " + print_duration(self.max_lifetime_sec) + ")")
+            self.request_counter.inc()
             self.response = requests.get(self.uri,
                                          stream=True,
                                          timeout=self.read_timeout_sec,

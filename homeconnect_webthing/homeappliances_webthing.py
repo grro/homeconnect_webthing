@@ -93,6 +93,18 @@ class ApplianceThing(Thing):
                          'readOnly': True,
                      }))
 
+        self.request_count = Value(appliance.request_counter)
+        self.add_property(
+            Property(self,
+                     'request_count_today',
+                     self.request_count,
+                     metadata={
+                         'title': 'Request count today',
+                         "type": "integer",
+                         'description': 'The number of executed request today',
+                         'readOnly': True,
+                     }))
+
         self.power = Value(appliance.power)
         self.add_property(
             Property(self,
@@ -187,6 +199,7 @@ class ApplianceThing(Thing):
         self.device_type.notify_of_external_update(self.appliance.device_type)
         self.program_progress.notify_of_external_update(appliance.program_progress)
         self.selected_program.notify_of_external_update(appliance.program_selected)
+        self.request_count.notify_of_external_update(appliance.request_counter.count)
 
     def __hash__(self):
         return hash(self.appliance)

@@ -7,8 +7,7 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta
 from homeconnect_webthing.auth import Auth
 from homeconnect_webthing.eventstream import EventListener, ReconnectingEventStream
-from homeconnect_webthing.utils import print_duration
-
+from homeconnect_webthing.utils import print_duration, DailyRequestCounter
 
 
 DRYER = 'dryer'
@@ -46,7 +45,7 @@ class Targetdate:
 
 class Appliance(EventListener):
 
-    def __init__(self, device_uri: str, auth: Auth, name: str, device_type: str, haid: str, brand: str, vib: str, enumber: str):
+    def __init__(self, device_uri: str, auth: Auth, name: str, device_type: str, haid: str, brand: str, vib: str, enumber: str, request_counter: DailyRequestCounter):
         self._device_uri = device_uri
         self._auth = auth
         self.name = name
@@ -55,6 +54,7 @@ class Appliance(EventListener):
         self.brand = brand
         self.vib = vib
         self.enumber = enumber
+        self.request_counter = request_counter
         self.__value_changed_listeners = set()
         self.last_refresh = datetime.now() - timedelta(hours=9)
         self.remote_start_allowed = False
@@ -122,6 +122,7 @@ class Appliance(EventListener):
 
     def on_keep_alive_event(self, event):
         logging.debug("keep alive event")
+        self.__notify_listeners()
 
     def on_notify_event(self, event):
         logging.debug(self.name + " notify event: " + str(event.data))
@@ -210,6 +211,7 @@ class Appliance(EventListener):
 
     def _perform_get(self, path:str, ignore_error_codes: List[int] = None) -> Dict[str, Any]:
         uri = self._device_uri + path
+        self.request_counter.inc()
         response = requests.get(uri, headers={"Authorization": "Bearer " + self._auth.access_token}, timeout=5000)
         if is_success(response.status_code):
             return response.json()
@@ -222,6 +224,7 @@ class Appliance(EventListener):
 
     def _perform_put(self, path:str, data: str, max_trials: int = 3, current_trial: int = 1):
         uri = self._device_uri + path
+        self.request_counter.inc()
         response = requests.put(uri, data=data, headers={"Content-Type": "application/json", "Authorization": "Bearer " + self._auth.access_token}, timeout=5000)
         if not is_success(response.status_code):
             logging.warning("error occurred by calling PUT " + uri + " " + data)
@@ -231,6 +234,7 @@ class Appliance(EventListener):
                 logging.warning("waiting " + str(delay) + " sec for retry")
                 sleep(delay)
                 self._perform_put(path, data, max_trials, current_trial+1)
+            response.raise_for_status()
 
     @property
     def __fingerprint(self) -> str:
@@ -249,7 +253,7 @@ class Appliance(EventListener):
 
 class Dishwasher(Appliance):
 
-    def __init__(self, device_uri: str, auth: Auth, name: str, device_type: str, haid: str, brand: str, vib: str, enumber: str):
+    def __init__(self, device_uri: str, auth: Auth, name: str, device_type: str, haid: str, brand: str, vib: str, enumber: str, request_counter: DailyRequestCounter):
         self.__program_start_in_relative_sec = 0
         self.program_remaining_time_sec = 0
         self.__program_active = ""
@@ -258,7 +262,7 @@ class Dishwasher(Appliance):
         self.program_vario_speed_plus = ""
         self.program_energy_forecast_percent = 0
         self.program_water_forecast_percent = 0
-        super().__init__(device_uri, auth, name, device_type, haid, brand, vib, enumber)
+        super().__init__(device_uri, auth, name, device_type, haid, brand, vib, enumber, request_counter)
 
     def _on_value_changed(self, key: str, value: str, ops: str) -> bool:
         if key == 'BSH.Common.Root.ActiveProgram':
@@ -318,7 +322,7 @@ class Dishwasher(Appliance):
                 self._perform_put("/programs/active", json.dumps(data, indent=2), max_trials=3)
                 logging.info(self.name + " program " + self.program_selected + " starts in " + print_duration(remaining_secs_to_wait) + " (program duration " + print_duration(self.program_remaining_time_sec) + ")")
             except Exception as e:
-                logging.warning("error occurred by starting " + self.name, e)
+                logging.warning("error occurred by starting " + self.name + " " + str(e))
         else:
             logging.warning("ignoring start command. " + self.name + " is in state " + self._operation)
         self._refresh(reason=self.name + " write start date post-refresh")
@@ -327,15 +331,15 @@ class Dishwasher(Appliance):
 
 class Dryer(Appliance):
 
-    def __init__(self, device_uri: str, auth: Auth, name: str, device_type: str, haid: str, brand: str, vib: str, enumber: str):
+    def __init__(self, device_uri: str, auth: Auth, name: str, device_type: str, haid: str, brand: str, vib: str, enumber: str, request_counter: DailyRequestCounter):
         self.__program_finish_in_relative_sec = 0
-        super().__init__(device_uri, auth, name, device_type, haid, brand, vib, enumber)
         self.child_lock = False
         self.program_gentle = False
         self.__program_drying_target = ""
         self.__program_drying_target_adjustment = ""
         self.__program_wrinkle_guard = ""
         self.__program_duration_sec = 0
+        super().__init__(device_uri, auth, name, device_type, haid, brand, vib, enumber, request_counter)
 
     @property
     def program_duration_sec(self) -> int:
@@ -445,18 +449,18 @@ class Dryer(Appliance):
                 self._perform_put("/programs/active", json.dumps(data, indent=2), max_trials=3)
                 logging.info(self.name + " program " + "self.program_selected" + " starts in " + print_duration(targetdate.remaining_secs_to_start()) + " (duration: " + print_duration(self.program_duration_sec) + ")")
             except Exception as e:
-                logging.warning("error occurred by starting " + self.name, e)
+                logging.warning("error occurred by starting " + self.name + " " + str(e))
         else:
             logging.warning("ignoring start command. " + self.name + " is in state " + self._operation)
         self._refresh(reason=self.name + " start date updated post-refresh")
 
 
 
-def create_appliance(uri: str, auth: Auth, name: str, device_type: str, haid: str, brand: str, vib: str, enumber: str) -> Optional[Appliance]:
+def create_appliance(uri: str, auth: Auth, name: str, device_type: str, haid: str, brand: str, vib: str, enumber: str, request_counter: DailyRequestCounter) -> Optional[Appliance]:
     if device_type.lower() == DISHWASHER:
-        return Dishwasher(uri, auth, name, device_type, haid, brand, vib, enumber)
+        return Dishwasher(uri, auth, name, device_type, haid, brand, vib, enumber, request_counter)
     elif device_type.lower() == DRYER:
-        return Dryer(uri, auth, name, device_type, haid, brand, vib, enumber)
+        return Dryer(uri, auth, name, device_type, haid, brand, vib, enumber, request_counter)
     else:
         return None
 
@@ -469,6 +473,7 @@ class HomeConnect:
     def __init__(self, refresh_token: str, client_secret: str):
         self.notify_listeners: List[EventListener] = list()
         self.auth = Auth(refresh_token, client_secret)
+        self.request_counter = DailyRequestCounter()
         Thread(target=self.__start_consuming_events, daemon=True).start()
 
     # will be called by a background thread
@@ -477,6 +482,7 @@ class HomeConnect:
         ReconnectingEventStream(HomeConnect.API_URI + "/homeappliances/events",
                                 self.auth,
                                 self,
+                                self.request_counter,
                                 read_timeout_sec=3*60,
                                 max_lifetime_sec=17*60*60).consume()
 
@@ -528,7 +534,8 @@ class HomeConnect:
                                           homeappliances['haId'],
                                           homeappliances['brand'],
                                           homeappliances['vib'],
-                                          homeappliances['enumber'])
+                                          homeappliances['enumber'],
+                                          self.request_counter)
                 if device is not None:
                     self.notify_listeners.append(device)
                     devices.append(device)
