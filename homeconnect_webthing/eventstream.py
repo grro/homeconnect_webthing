@@ -1,10 +1,11 @@
 import logging
 import requests
 import sseclient
-from abc import ABC
+from abc import ABC, abstractmethod
 from time import sleep
 from threading import Thread
 from datetime import datetime, timedelta
+from typing import Dict
 from homeconnect_webthing.auth import Auth
 from homeconnect_webthing.utils import print_duration
 
@@ -12,10 +13,14 @@ from homeconnect_webthing.utils import print_duration
 
 class EventListener(ABC):
 
-    def on_connected(self):
+    @abstractmethod
+    def id(self) -> str:
         pass
 
-    def on_disconnected(self):
+    def on_connected(self, event):
+        pass
+
+    def on_disconnected(self, event):
         pass
 
     def on_keep_alive_event(self, event):
@@ -38,15 +43,11 @@ class ReconnectingEventStream:
                  auth: Auth,
                  notify_listener,
                  read_timeout_sec: int,
-                 max_lifetime_sec:int,
-                 reconnect_delay_short_sec: int = 5,
-                 reconnect_delay_long_sec: int = 3 * 60):
+                 max_lifetime_sec:int):
         self.uri = uri
         self.auth = auth
         self.read_timeout_sec = read_timeout_sec
         self.max_lifetime_sec = max_lifetime_sec
-        self.reconnect_delay_short_sec = reconnect_delay_short_sec
-        self.reconnect_delay_long_sec = reconnect_delay_long_sec
         self.notify_listener = notify_listener
         self.stream = None
         self.is_running = True
@@ -66,8 +67,12 @@ class ReconnectingEventStream:
                 self.stream.consume()
             except Exception as e:
                 logging.warning("error has been occurred for event stream " + self.uri + " " + str(e))
-                elapsed_min = (datetime.now() - start_time).total_seconds() / 60
-                wait_time_sec = self.reconnect_delay_long_sec if (elapsed_min < self.read_timeout_sec) else self.reconnect_delay_short_sec
+                elapsed = (datetime.now() - start_time).total_seconds()
+                wait_time_sec = elapsed
+                if wait_time_sec < 5:
+                    wait_time_sec = 5
+                elif wait_time_sec > 60*60:
+                    wait_time_sec = 60*60
                 logging.info("try reconnect in " + print_duration(wait_time_sec) + " sec...")
                 sleep(wait_time_sec)
                 logging.info("reconnecting")
@@ -105,7 +110,7 @@ class EventStream:
 
             if 200 <= self.response.status_code <= 299:
                 self.stream = sseclient.SSEClient(self.response)
-                self.notify_listener.on_connected()
+                self.notify_listener.on_connected(None)
 
                 logging.info("consuming events...")
                 for event in self.stream.events():
@@ -119,10 +124,10 @@ class EventStream:
                         self.notify_listener.on_event_event(event)
                     elif event.event.upper() == "CONNECTED":
                         logging.info("device reconnected " + str(event))
-                        self.notify_listener.on_connected()
+                        self.notify_listener.on_connected(event)
                     elif event.event.upper() == "DISCONNECTED":
                         logging.info("device disconnected " + str(event))
-                        self.notify_listener.on_disconnected()
+                        self.notify_listener.on_disconnected(event)
                     else:
                         logging.info("unknown event type " + str(event.event))
 
@@ -141,7 +146,7 @@ class EventStream:
                 self.close()
                 logging.info("event stream closed (elapsed: " + print_duration(int((datetime.now()-connect_time).total_seconds())) + ")")
             finally:
-                self.notify_listener.on_disconnected()
+                self.notify_listener.on_disconnected(None)
 
 
 

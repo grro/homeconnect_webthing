@@ -67,6 +67,9 @@ class Appliance(EventListener):
         self._operation = ""
         self._refresh(reason=self.name + " appliance initialized")
 
+    def id(self) -> str:
+        return self.haid
+
     @property
     def power(self):
         if len(self._power) > 0:
@@ -110,33 +113,34 @@ class Appliance(EventListener):
         for value_changed_listener in self.__value_changed_listeners:
             value_changed_listener()
 
-    def on_connected(self):
-        logging.info("refresh " + self.name + " state (new event stream has been established)")
+    def on_connected(self, event):
+        logging.info(self.name + " device has been connected")
         self._refresh(reason="on connected")
+
+    def on_disconnected(self, event):
+        logging.info(self.name + " device has been disconnected")
 
     def on_keep_alive_event(self, event):
         logging.debug("keep alive event")
 
     def on_notify_event(self, event):
-        logging.debug("notify event: " + str(event.data))
+        logging.debug(self.name + " notify event: " + str(event.data))
         self._on_value_changed_event(event)
 
     def on_status_event(self, event):
-        logging.debug("status event: " + str(event.data))
+        logging.debug(self.name + " status event: " + str(event.data))
         self._on_value_changed_event(event)
 
     def _on_event_event(self, event):
-        logging.debug("event event: " + str(event.data))
-        pass
+        logging.debug(self.name + " event event: " + str(event.data))
 
     def _on_value_changed_event(self, event):
-        if event.id == self.haid:
-            try:
-                data = json.loads(event.data)
-                self._on_values_changed(data.get('items', []), "updated")
-                self.__notify_listeners()
-            except Exception as e:
-                logging.warning("error occurred by handling event " + str(event), e)
+        try:
+            data = json.loads(event.data)
+            self._on_values_changed(data.get('items', []), "updated")
+            self.__notify_listeners()
+        except Exception as e:
+            logging.warning("error occurred by handling event " + str(event), e)
 
     def _on_values_changed(self, changes: List[Any], ops: str = "updated"):
         for record in changes:
@@ -334,6 +338,13 @@ class Dryer(Appliance):
         self.__program_duration_sec = 0
 
     @property
+    def program_duration_sec(self) -> int:
+        if self.__program_finish_in_relative_sec > 0:
+            return self.__program_finish_in_relative_sec
+        else:
+            return 3 * 60 * 60
+
+    @property
     def program_wrinkle_guard(self) -> str:
         if len(self.__program_wrinkle_guard) > 0:
             return self.__program_wrinkle_guard[self.__program_wrinkle_guard.rindex('.') + 1:]
@@ -401,25 +412,23 @@ class Dryer(Appliance):
                     targetdate.stepsize = constrains.get("stepsize", targetdate.stepsize)
 
     def write_end_date(self, end_date: str):
+        self._refresh(notify=False, reason=self.name + " write end date pre-refresh")
         if self._operation in ["BSH.Common.EnumType.OperationState.Ready", '']:
-            program_duration_sec = self.__program_finish_in_relative_sec
-            start_date = datetime.fromisoformat(end_date) - timedelta(seconds=program_duration_sec)
+            start_date = datetime.fromisoformat(end_date) - timedelta(seconds=self.program_duration_sec)
             logging.info("WRITE_END_DATE end_date " + str(end_date))
-            logging.info("WRITE_END_DATE program_duration_sec " + str(program_duration_sec))
+            logging.info("WRITE_END_DATE program_duration_sec " + str(self.program_duration_sec))
             logging.info("WRITE_END_DATE computed start_date " + str(start_date.isoformat()))
             self.write_start_date(start_date.isoformat())
 
     def write_start_date(self, start_date: str):
         self._refresh(notify=False, reason=self.name + " write start date pre-refresh")
         if self._operation in ["BSH.Common.EnumType.OperationState.Ready", '']:
-            self.__program_duration_sec = self.__program_finish_in_relative_sec
             targetdate = Targetdate(start_date)
             self.__update_target_date_options(targetdate)
-            program_duration_sec = self.__program_finish_in_relative_sec
-            remaining_secs_to_finish = targetdate.remaining_secs_to_finish(program_duration_sec)
+            remaining_secs_to_finish = targetdate.remaining_secs_to_finish(self.program_duration_sec)
             logging.info("WRITE_START_DATE start_date " + str(start_date))
             logging.info("WRITE_START_DATE remaining secs to start " + str(targetdate.remaining_secs_to_start()))
-            logging.info("WRITE_START_DATE program_finish_in_relative_sec " + str(self.__program_finish_in_relative_sec))
+            logging.info("WRITE_START_DATE program_duration_sec " + str(self.program_duration_sec))
             logging.info("WRITE_START_DATE remaining_secs_to_finish " + str(remaining_secs_to_finish))
 
             data = {
@@ -434,7 +443,7 @@ class Dryer(Appliance):
             }
             try:
                 self._perform_put("/programs/active", json.dumps(data, indent=2), max_trials=3)
-                logging.info(self.name + " program " + "self.program_selected" + " starts in " + print_duration(targetdate.remaining_secs_to_start()) + " (duration: " + print_duration(program_duration_sec) + ")")
+                logging.info(self.name + " program " + "self.program_selected" + " starts in " + print_duration(targetdate.remaining_secs_to_start()) + " (duration: " + print_duration(self.program_duration_sec) + ")")
             except Exception as e:
                 logging.warning("error occurred by starting " + self.name, e)
         else:
@@ -469,31 +478,40 @@ class HomeConnect:
                                 self.auth,
                                 self,
                                 read_timeout_sec=3*60,
-                                max_lifetime_sec=170*60).consume()
+                                max_lifetime_sec=17*60*60).consume()
 
-    def on_connected(self):
-        for notify_listener in self.notify_listeners:
-            notify_listener.on_connected()
+    def __is_assigned(self, notify_listener: EventListener, event):
+        return event is None or event.id is None or event.id == notify_listener.id()
 
-    def on_disconnected(self):
+    def on_connected(self, event):
         for notify_listener in self.notify_listeners:
-            notify_listener.on_disconnected()
+            if self.__is_assigned(notify_listener, event):
+                notify_listener.on_connected(event)
+
+    def on_disconnected(self, event):
+        for notify_listener in self.notify_listeners:
+            if self.__is_assigned(notify_listener, event):
+                notify_listener.on_disconnected(event)
 
     def on_keep_alive_event(self, event):
         for notify_listener in self.notify_listeners:
-            notify_listener.on_keep_alive_event(event)
+            if self.__is_assigned(notify_listener, event):
+                notify_listener.on_keep_alive_event(event)
 
     def on_notify_event(self, event):
         for notify_listener in self.notify_listeners:
-            notify_listener.on_notify_event(event)
+            if self.__is_assigned(notify_listener, event):
+                notify_listener.on_notify_event(event)
 
     def on_status_event(self, event):
         for notify_listener in self.notify_listeners:
-            notify_listener.on_status_event(event)
+            if self.__is_assigned(notify_listener, event):
+                notify_listener.on_status_event(event)
 
     def on_event_event(self, event):
         for notify_listener in self.notify_listeners:
-            notify_listener.on_event_event(event)
+            if self.__is_assigned(notify_listener, event):
+                notify_listener.on_event_event(event)
 
     def appliances(self) -> List[Appliance]:
         uri = HomeConnect.API_URI + "/homeappliances"
