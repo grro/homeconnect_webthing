@@ -186,7 +186,6 @@ class ApplianceThing(Thing):
         self.ioloop.add_callback(self._on_value_changed, self.appliance)
 
     def _on_value_changed(self, appliance):
-        logging.info(self.appliance.name + " webthing - processing on value changed event")
         self.power.notify_of_external_update(self.appliance.power)
         self.door.notify_of_external_update(self.appliance.door)
         self.operation.notify_of_external_update(self.appliance.operation)
