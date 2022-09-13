@@ -120,9 +120,12 @@ class EventStream:
                 logging.info("consuming events...")
                 try:
                     for event in self.stream.events():
+                        next_reconnect_date = connect_time + timedelta(seconds=self.max_lifetime_sec)
+                        remaining_secs_next_reconnect = round((next_reconnect_date - datetime.now()).total_seconds())
                         if event.event.upper() == "NOTIFY":
                             self.notify_listener.on_notify_event(event)
                         elif event.event.upper() == "KEEP-ALIVE":
+                            logging.debug("keep alive event (remaining life time " + print_duration(remaining_secs_next_reconnect) + ")")
                             self.notify_listener.on_keep_alive_event(event)
                         elif event.event.upper() == "STATUS":
                             self.notify_listener.on_status_event(event)
@@ -137,7 +140,7 @@ class EventStream:
                         else:
                             logging.info("unknown event type " + str(event.event))
 
-                        if datetime.now() > (connect_time + timedelta(seconds=self.max_lifetime_sec)):
+                        if remaining_secs_next_reconnect <= 0:
                             self.close("Max lifetime " + print_duration(self.max_lifetime_sec) + " reached (periodic reconnect)")
 
                         if self.stream is None:

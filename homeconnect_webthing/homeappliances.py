@@ -121,7 +121,6 @@ class Appliance(EventListener):
         logging.info(self.name + " device has been disconnected")
 
     def on_keep_alive_event(self, event):
-        logging.debug("keep alive event")
         self.__notify_listeners()
 
     def on_notify_event(self, event):
@@ -484,7 +483,7 @@ class HomeConnect:
                                 self,
                                 self.request_counter,
                                 read_timeout_sec=3*60,
-                                max_lifetime_sec=11*60*60).consume()
+                                max_lifetime_sec=7*60*60).consume()
 
     def __is_assigned(self, notify_listener: EventListener, event):
         return event is None or event.id is None or event.id == notify_listener.id()
