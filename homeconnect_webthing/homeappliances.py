@@ -484,7 +484,7 @@ class HomeConnect:
                                 self,
                                 self.request_counter,
                                 read_timeout_sec=3*60,
-                                max_lifetime_sec=17*60*60).consume()
+                                max_lifetime_sec=11*60*60).consume()
 
     def __is_assigned(self, notify_listener: EventListener, event):
         return event is None or event.id is None or event.id == notify_listener.id()

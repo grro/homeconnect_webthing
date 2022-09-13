@@ -60,19 +60,21 @@ class ReconnectingEventStream:
         self.stream.close()
 
     def consume(self):
+        num_trials = 0
         while self.is_running:
-            start_time = datetime.now()
             try:
+                num_trials += 1
                 self.stream = EventStream(self.uri, self.auth, self.notify_listener, self.request_counter, self.read_timeout_sec, self.max_lifetime_sec)
                 EventStreamWatchDog(self.stream, int(self.max_lifetime_sec * 1.1)).start()
                 self.stream.consume()
+                num_trials = 0
             except Exception as e:
                 logging.warning("error has been occurred for event stream " + self.uri + " " + str(e))
-                elapsed = (datetime.now() - start_time).total_seconds()
-                wait_time_sec = elapsed
-                if wait_time_sec < 5:
+                if num_trials < 3:
                     wait_time_sec = 5
-                elif wait_time_sec > 60*60:
+                elif num_trials < 5:
+                    wait_time_sec = 30
+                else:
                     wait_time_sec = 60*60
                 logging.info("try reconnect in " + print_duration(wait_time_sec) + " sec...")
                 sleep(wait_time_sec)
@@ -116,29 +118,35 @@ class EventStream:
                 self.notify_listener.on_connected(None)
 
                 logging.info("consuming events...")
-                for event in self.stream.events():
-                    if event.event.upper() == "NOTIFY":
-                        self.notify_listener.on_notify_event(event)
-                    elif event.event.upper() == "KEEP-ALIVE":
-                        self.notify_listener.on_keep_alive_event(event)
-                    elif event.event.upper() == "STATUS":
-                        self.notify_listener.on_status_event(event)
-                    elif event.event.upper() == "EVENT":
-                        self.notify_listener.on_event_event(event)
-                    elif event.event.upper() == "CONNECTED":
-                        logging.info("device reconnected " + str(event))
-                        self.notify_listener.on_connected(event)
-                    elif event.event.upper() == "DISCONNECTED":
-                        logging.info("device disconnected " + str(event))
-                        self.notify_listener.on_disconnected(event)
-                    else:
-                        logging.info("unknown event type " + str(event.event))
+                try:
+                    for event in self.stream.events():
+                        if event.event.upper() == "NOTIFY":
+                            self.notify_listener.on_notify_event(event)
+                        elif event.event.upper() == "KEEP-ALIVE":
+                            self.notify_listener.on_keep_alive_event(event)
+                        elif event.event.upper() == "STATUS":
+                            self.notify_listener.on_status_event(event)
+                        elif event.event.upper() == "EVENT":
+                            self.notify_listener.on_event_event(event)
+                        elif event.event.upper() == "CONNECTED":
+                            logging.info("device reconnected " + str(event))
+                            self.notify_listener.on_connected(event)
+                        elif event.event.upper() == "DISCONNECTED":
+                            logging.info("device disconnected " + str(event))
+                            self.notify_listener.on_disconnected(event)
+                        else:
+                            logging.info("unknown event type " + str(event.event))
 
+                        if datetime.now() > (connect_time + timedelta(seconds=self.max_lifetime_sec)):
+                            self.close("Max lifetime " + print_duration(self.max_lifetime_sec) + " reached (periodic reconnect)")
+
+                        if self.stream is None:
+                            return
+                except Exception as e:
                     if datetime.now() > (connect_time + timedelta(seconds=self.max_lifetime_sec)):
                         self.close("Max lifetime " + print_duration(self.max_lifetime_sec) + " reached (periodic reconnect)")
-
-                    if self.stream is None:
-                        return
+                    else:
+                        raise e
             else:
                 if self.response.headers.get('Content-Type', 'text/event-stream').lower() == 'text/event-stream':
                     raise Exception("opening event stream returns " + str(self.response.status_code))
