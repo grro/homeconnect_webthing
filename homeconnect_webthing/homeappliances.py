@@ -155,8 +155,6 @@ class Appliance(EventListener):
             self._on_values_changed(status, "reload status")
         except Exception as e:
             self._on_reload_status_and_settings_error(e)
-        finally:
-            self._notify_listeners()
 
     def _on_reload_status_and_settings_error(self, e):
         logging.warning(self.name + " error occurred on refreshing" + str(e))
@@ -171,6 +169,7 @@ class Appliance(EventListener):
                         logging.warning(self.name + " unhandled change " + str(change) + " (" + source + ")")
                 except Exception as e:
                     logging.warning("error occurred by handling change with key " + key + " (" + source + ")" + " " + str(e) + "(" + source + ")")
+        self._notify_listeners()
 
     def _on_value_changed(self, key: str, change: Dict[str, Any], source: str) -> bool:
         if key == 'BSH.Common.Status.DoorState':
@@ -227,7 +226,6 @@ class Appliance(EventListener):
                 self._on_values_changed(available_options, "reload program")
             except Exception as e:
                 logging.warning("error occurred fetching program options of " + self._program_selected + " " + str(e))
-
         self._notify_listeners()
 
     def _perform_get(self, path:str) -> Dict[str, Any]:
