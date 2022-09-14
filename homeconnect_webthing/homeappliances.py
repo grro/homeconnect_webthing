@@ -413,35 +413,40 @@ class Dryer(Appliance):
             return super()._on_value_changed(key, change, source)
         return True
 
+    def __compute_program_duration(self):
+        duration = self.__program_finish_in_relative_sec
+        if duration == 0:
+            duration = 2.5 * 60*60
+        return duration
+
     def read_end_date(self) -> str:
-        end_date = datetime.now() + timedelta(seconds=self.__program_finish_in_relative_sec)
+        end_date = datetime.now() + timedelta(seconds=self.__compute_program_duration())
         if end_date > datetime.now():
             return end_date.strftime("%Y-%m-%dT%H:%M")
         else:
             return ""
 
     def read_start_date(self) -> str:
-        end_date = datetime.now() + timedelta(seconds=self.__program_finish_in_relative_sec)
+        end_date = datetime.now() + timedelta(seconds=self.__compute_program_duration())
         start_date = end_date - timedelta(seconds=self.__program_duration_sec)
         if start_date > datetime.now():
             return start_date.strftime("%Y-%m-%dT%H:%M")
         else:
             return ""
 
-    def write_end_date(self, end_date: str):
-        self._reload_selected_program()  # refresh to ensure that current program is read
-        start_date = datetime.fromisoformat(end_date) - timedelta(seconds=self.__program_finish_in_relative_sec)
-        self.write_start_date(start_date.isoformat())
-
     def write_start_date(self, start_date: str):
+        self._reload_selected_program()  # refresh to ensure that current program is read
+        end_date = (datetime.fromisoformat(start_date) + timedelta(seconds=self.__compute_program_duration())).isoformat()
+        logging.info("end date " + end_date + " computed based on start date " + start_date + " and program " + self._program_selected + " duration of " + print_duration(self.__compute_program_duration()))
+        self.write_end_date(end_date)
+
+    def write_end_date(self, end_date: str):
         self._reload_selected_program()  # refresh to ensure that current program is read
         if len(self._program_selected) == 0:
             logging.warning("ignoring start command. No program selected")
 
         elif self._operation in ["BSH.Common.EnumType.OperationState.Ready", ''] and self.power.upper() == 'ON':
-            self.__program_duration_sec = self.__program_finish_in_relative_sec
-            end_date = datetime.fromisoformat(start_date) + timedelta(seconds=self.__program_finish_in_relative_sec)
-            remaining_secs_to_finish = int((end_date - datetime.now()).total_seconds())
+            remaining_secs_to_finish = int((datetime.fromisoformat(end_date) - datetime.now()).total_seconds())
             if remaining_secs_to_finish < 0:
                 remaining_secs_to_finish = 0
             if remaining_secs_to_finish > self.__program_finish_in_relative_max_sec:
@@ -459,7 +464,7 @@ class Dryer(Appliance):
             }
             try:
                 self._perform_put("/programs/active", json.dumps(data, indent=2), max_trials=3)
-                logging.info(self.name + " program " + "self.program_selected" + " starts in " + print_duration(remaining_secs_to_finish - self.__program_duration_sec))
+                logging.info(self.name + " program " + "self.program_selected" + " starts in " + print_duration(remaining_secs_to_finish - self.__compute_program_duration()))
             except Exception as e:
                 logging.warning("error occurred by starting " + self.name + " " + str(e))
         else:
