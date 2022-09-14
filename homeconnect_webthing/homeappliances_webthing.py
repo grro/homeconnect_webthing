@@ -153,6 +153,18 @@ class ApplianceThing(Thing):
                          'readOnly': True,
                      }))
 
+        self.remote_control_active = Value(appliance.program_remote_control_active)
+        self.add_property(
+            Property(self,
+                     'remote_control_active',
+                     self.remote_control_active,
+                     metadata={
+                         'title': 'Remote Control active',
+                         "type": "boolean",
+                         'description': 'Remote Control Active State. See https://api-docs.home-connect.com/states?#remote-control-activation-state',
+                         'readOnly': True,
+                     }))
+
         self.selected_program = Value(appliance.program_selected)
         self.add_property(
             Property(self,
@@ -190,6 +202,7 @@ class ApplianceThing(Thing):
         self.door.notify_of_external_update(self.appliance.door)
         self.operation.notify_of_external_update(self.appliance.operation)
         self.remote_start_allowed.notify_of_external_update(self.appliance.remote_start_allowed)
+        self.remote_control_active.notify_of_external_update(self.appliance.program_remote_control_active)
         self.enumber.notify_of_external_update(self.appliance.enumber)
         self.vib.notify_of_external_update(self.appliance.vib)
         self.brand.notify_of_external_update(self.appliance.brand)

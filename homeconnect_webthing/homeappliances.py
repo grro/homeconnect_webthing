@@ -61,7 +61,7 @@ class Appliance(EventListener):
         self._program_selected = ""
         self.program_remaining_time_sec = 0
         self.__program_progress = 0
-        self.__program_remote_control_active = ""
+        self.program_remote_control_active = ""
         self.__program_local_control_active = ""
         self._power = ""
         self._door = ""
@@ -135,7 +135,7 @@ class Appliance(EventListener):
         self._on_value_changed_event(event)
 
     def _on_event_event(self, event):
-        logging.debug(self.name + " event event: " + str(event.data))
+        logging.debug(self.name + " unhandled event event: " + str(event.data))
 
     def _on_value_changed_event(self, event):
         try:
@@ -194,8 +194,8 @@ class Appliance(EventListener):
             self.__program_local_control_active = change.get('value', None)
             logging.info(self.name + " field 'local control active': " + str(self.__program_local_control_active) + " (" + source + ")")
         elif key == 'BSH.Common.Status.RemoteControlActive':
-            self.__program_remote_control_active = change.get('value', False)
-            logging.info(self.name + " field 'remote control active': " + str(self.__program_remote_control_active) + " (" + source + ")")
+            self.program_remote_control_active = change.get('value', False)
+            logging.info(self.name + " field 'remote control active': " + str(self.program_remote_control_active) + " (" + source + ")")
         elif key == 'BSH.Common.Setting.ChildLock': # supported by dishwasher, washer, dryer, ..
             self.child_lock = change.get('value', False)
             logging.info(self.name + " field 'child lock': " + str(self.child_lock) + " (" + source + ")")
@@ -249,7 +249,6 @@ class Appliance(EventListener):
                 logging.warning("waiting " + str(delay) + " sec for retry")
                 sleep(delay)
                 self._perform_put(path, data, max_trials, current_trial+1)
-                logging.info(str(current_trial) + ". trial of calling PUT "  + uri + " succeeded")
             else:
                 response.raise_for_status()
 
@@ -465,7 +464,7 @@ class Dryer(Appliance):
             }
             try:
                 self._perform_put("/programs/active", json.dumps(data, indent=2), max_trials=3)
-                logging.info(self.name + " program " + "self.program_selected" + " starts in " + print_duration(remaining_secs_to_finish - self.__compute_program_duration()))
+                logging.info(self.name + " program " + self.program_selected + " starts in " + print_duration(remaining_secs_to_finish - self.__compute_program_duration()))
             except Exception as e:
                 logging.warning("error occurred by starting " + self.name + " " + str(e))
         else:
