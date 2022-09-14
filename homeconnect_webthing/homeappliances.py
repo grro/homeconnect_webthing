@@ -306,9 +306,12 @@ class Dishwasher(Appliance):
 
     def write_start_date(self, start_date: str):
         self._refresh(notify=False, reason=self.name + " write start date pre-refresh")
-        self._fresh_program_info()
 
-        if self._operation in ["BSH.Common.EnumType.OperationState.Ready"]:
+        self._fresh_program_info()
+        if len(self._program_selected) == 0:
+            logging.warning("ignoring start command. No program selected")
+            return
+        elif self._operation in ["BSH.Common.EnumType.OperationState.Ready"]:
             remaining_secs_to_wait = Targetdate(start_date).remaining_secs_to_finish(self.program_remaining_time_sec)
             data = {
                 "data": {
