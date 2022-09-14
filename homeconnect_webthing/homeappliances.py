@@ -306,6 +306,7 @@ class Dishwasher(Appliance):
 
     def write_start_date(self, start_date: str):
         self._refresh(notify=False, reason=self.name + " write start date pre-refresh")
+        self._fresh_program_info()
 
         if self._operation in ["BSH.Common.EnumType.OperationState.Ready"]:
             remaining_secs_to_wait = Targetdate(start_date).remaining_secs_to_finish(self.program_remaining_time_sec)
@@ -433,7 +434,7 @@ class Dryer(Appliance):
     def write_start_date(self, start_date: str):
         self._refresh(notify=False, reason=self.name + " write start date pre-refresh")
         self._fresh_program_info()
-        if self._operation in ["BSH.Common.EnumType.OperationState.Ready", '']:
+        if self._operation in ["BSH.Common.EnumType.OperationState.Ready", ''] and self.power.upper() == 'ON':
             targetdate = Targetdate(start_date)
             self.__update_target_date_options(targetdate)
             remaining_secs_to_finish = targetdate.remaining_secs_to_finish(self.program_duration_sec)
@@ -458,7 +459,7 @@ class Dryer(Appliance):
             except Exception as e:
                 logging.warning("error occurred by starting " + self.name + " " + str(e))
         else:
-            logging.warning("ignoring start command. " + self.name + " is in state " + self._operation)
+            logging.warning("ignoring start command. " + self.name + " is in state " + self._operation + " power: " + self.power)
 
 
 
