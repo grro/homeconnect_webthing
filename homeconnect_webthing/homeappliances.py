@@ -107,9 +107,9 @@ class Appliance(EventListener):
 
     def register_value_changed_listener(self, value_changed_listener):
         self.__value_changed_listeners.add(value_changed_listener)
-        self.__notify_listeners()
+        self._notify_listeners()
 
-    def __notify_listeners(self):
+    def _notify_listeners(self):
         for value_changed_listener in self.__value_changed_listeners:
             value_changed_listener()
 
@@ -121,7 +121,7 @@ class Appliance(EventListener):
         logging.info(self.name + " device has been disconnected")
 
     def on_keep_alive_event(self, event):
-        self.__notify_listeners()
+        self._notify_listeners()
 
     def on_notify_event(self, event):
         logging.debug(self.name + " notify event: " + str(event.data))
@@ -138,7 +138,7 @@ class Appliance(EventListener):
         try:
             data = json.loads(event.data)
             self._on_values_changed(data.get('items', []), "updated")
-            self.__notify_listeners()
+            self._notify_listeners()
         except Exception as e:
             logging.warning("error occurred by handling event " + str(event), e)
 
@@ -188,18 +188,22 @@ class Appliance(EventListener):
         try:
             self._do_refresh(reason)
             if notify:
-                self.__notify_listeners()
+                self._notify_listeners()
         except Exception as e:
-            logging.warning("error occurred on refreshing", e)
+            self._on_refresh_error(e)
+
+    def _on_refresh_error(self, e):
+        logging.warning("error occurred on refreshing", e)
 
     def _do_refresh(self, reason: str = None):
-        settings = self._perform_get('/settings', ignore_error_codes=[409]).get('data', {}).get('settings', {})
+        settings = self._perform_get('/settings').get('data', {}).get('settings', {})
         logging.info("fetching settings, status and selection for " + self.name)
         self._on_values_changed(settings, "setting fetched")
 
-        status = self._perform_get('/status', ignore_error_codes=[409]).get('data', {}).get('status', {})
+        status = self._perform_get('/status').get('data', {}).get('status', {})
         self._on_values_changed(status, "status fetched")
 
+    def _fresh_program_info(self):
         record = self._perform_get('/programs/selected', ignore_error_codes=[409]).get('data', {})
         self._on_program_selected(record.get('key', ""), record.get('options', {}))
 
@@ -216,9 +220,7 @@ class Appliance(EventListener):
             return response.json()
         else:
             if ignore_error_codes is None or response.status_code not in ignore_error_codes:
-                logging.warning("error occurred by calling GET " + uri)
-                logging.warning("got " + str(response.status_code) + " " + response.text)
-                raise Exception("error occurred by calling GET " + uri + " Got " + str(response))
+                raise Exception("error occurred by calling GET " + uri + " Got " + str(response.status_code) + " " + response.text)
             return {}
 
     def _perform_put(self, path:str, data: str, max_trials: int = 3, current_trial: int = 1):
@@ -324,7 +326,6 @@ class Dishwasher(Appliance):
                 logging.warning("error occurred by starting " + self.name + " " + str(e))
         else:
             logging.warning("ignoring start command. " + self.name + " is in state " + self._operation)
-        self._refresh(reason=self.name + " write start date post-refresh")
 
 
 
@@ -339,6 +340,12 @@ class Dryer(Appliance):
         self.__program_wrinkle_guard = ""
         self.__program_duration_sec = 0
         super().__init__(device_uri, auth, name, device_type, haid, brand, vib, enumber, request_counter)
+
+    def _on_refresh_error(self, e):
+        logging.warning("error occurred on refreshing " + str(e))
+        logging.info(self.name + " seems to be offline")
+        self._power = 'BSH.Common.EnumType.PowerState.Off'
+        self._notify_listeners()
 
     @property
     def program_duration_sec(self) -> int:
@@ -425,6 +432,7 @@ class Dryer(Appliance):
 
     def write_start_date(self, start_date: str):
         self._refresh(notify=False, reason=self.name + " write start date pre-refresh")
+        self._fresh_program_info()
         if self._operation in ["BSH.Common.EnumType.OperationState.Ready", '']:
             targetdate = Targetdate(start_date)
             self.__update_target_date_options(targetdate)
@@ -451,7 +459,6 @@ class Dryer(Appliance):
                 logging.warning("error occurred by starting " + self.name + " " + str(e))
         else:
             logging.warning("ignoring start command. " + self.name + " is in state " + self._operation)
-        self._refresh(reason=self.name + " start date updated post-refresh")
 
 
 
