@@ -244,14 +244,16 @@ class Appliance(EventListener):
         self.request_counter.inc()
         response = requests.put(uri, data=data, headers={"Content-Type": "application/json", "Authorization": "Bearer " + self._auth.access_token}, timeout=5000)
         if not is_success(response.status_code):
-            logging.warning("error occurred by calling PUT " + uri + " " + data)
+            logging.warning("error occurred by calling PUT (" + str(current_trial) + ". trial) " + uri + " " + data)
             logging.warning("got " + str(response.status_code) + " " + str(response.text))
             if current_trial <= max_trials:
                 delay = 1 + current_trial
                 logging.warning("waiting " + str(delay) + " sec for retry")
                 sleep(delay)
                 self._perform_put(path, data, max_trials, current_trial+1)
-            response.raise_for_status()
+                logging.info(str(current_trial) + ". trial of calling PUT "  + uri + " succeeded")
+            else:
+                response.raise_for_status()
 
     @property
     def __fingerprint(self) -> str:
@@ -420,14 +422,14 @@ class Dryer(Appliance):
         return duration
 
     def read_end_date(self) -> str:
-        end_date = datetime.now() + timedelta(seconds=self.__compute_program_duration())
+        end_date = datetime.now() + timedelta(seconds=self.__program_duration_sec)
         if end_date > datetime.now():
             return end_date.strftime("%Y-%m-%dT%H:%M")
         else:
             return ""
 
     def read_start_date(self) -> str:
-        end_date = datetime.now() + timedelta(seconds=self.__compute_program_duration())
+        end_date = datetime.now() + timedelta(seconds=self.__program_duration_sec)
         start_date = end_date - timedelta(seconds=self.__program_duration_sec)
         if start_date > datetime.now():
             return start_date.strftime("%Y-%m-%dT%H:%M")
@@ -446,6 +448,7 @@ class Dryer(Appliance):
             logging.warning("ignoring start command. No program selected")
 
         elif self._operation in ["BSH.Common.EnumType.OperationState.Ready", ''] and self.power.upper() == 'ON':
+            self.__program_duration_sec = self.__compute_program_duration()
             remaining_secs_to_finish = int((datetime.fromisoformat(end_date) - datetime.now()).total_seconds())
             if remaining_secs_to_finish < 0:
                 remaining_secs_to_finish = 0
