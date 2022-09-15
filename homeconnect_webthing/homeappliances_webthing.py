@@ -153,6 +153,18 @@ class ApplianceThing(Thing):
                          'readOnly': True,
                      }))
 
+        self.startable = Value(appliance.startable)
+        self.add_property(
+            Property(self,
+                     'startable',
+                     self.startable,
+                     metadata={
+                         'title': 'Startable',
+                         "type": "boolean",
+                         'description': 'True, if the appliance can be started remotely',
+                         'readOnly': True,
+                     }))
+
         self.remote_control_active = Value(appliance.program_remote_control_active)
         self.add_property(
             Property(self,
@@ -202,6 +214,7 @@ class ApplianceThing(Thing):
         self.door.notify_of_external_update(self.appliance.door)
         self.operation.notify_of_external_update(self.appliance.operation)
         self.remote_start_allowed.notify_of_external_update(self.appliance.remote_start_allowed)
+        self.startable.notify_of_external_update(self.appliance.startable)
         self.remote_control_active.notify_of_external_update(self.appliance.program_remote_control_active)
         self.enumber.notify_of_external_update(self.appliance.enumber)
         self.vib.notify_of_external_update(self.appliance.vib)
@@ -212,6 +225,7 @@ class ApplianceThing(Thing):
         self.program_progress.notify_of_external_update(appliance.program_progress)
         self.selected_program.notify_of_external_update(appliance.program_selected)
         self.request_count.notify_of_external_update(appliance.request_counter.count)
+
 
     def __hash__(self):
         return hash(self.appliance)

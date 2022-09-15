@@ -19,30 +19,6 @@ def is_success(status_code: int) -> bool:
     return status_code >= 200 and status_code <= 299
 
 
-class Targetdate:
-
-    def __init__(self, start_date: str):
-        self.start_date = start_date
-        self.unit = "seconds"
-        self.max = 86000
-        self.stepsize = 60
-
-    def remaining_secs_to_start(self) -> int:
-        remaining_secs_to_wait = int((datetime.fromisoformat(self.start_date) - datetime.now()).total_seconds())
-        remaining_secs_to_start = int(remaining_secs_to_wait/self.stepsize) * self.stepsize
-        if remaining_secs_to_start < 0:
-            remaining_secs_to_start = 0
-        if remaining_secs_to_start > self.max:
-            remaining_secs_to_start = self.max
-        return remaining_secs_to_start
-
-    def remaining_secs_to_finish(self, program_duration_sec: int) -> int:
-        remaining_secs_to_finish = self.remaining_secs_to_start() + program_duration_sec
-        if remaining_secs_to_finish > self.max:
-            remaining_secs_to_finish = self.max
-        return remaining_secs_to_finish
-
-
 class Appliance(EventListener):
 
     def __init__(self, device_uri: str, auth: Auth, name: str, device_type: str, haid: str, brand: str, vib: str, enumber: str, request_counter: DailyRequestCounter):
@@ -58,10 +34,11 @@ class Appliance(EventListener):
         self.__value_changed_listeners = set()
         self.last_refresh = datetime.now() - timedelta(hours=9)
         self.remote_start_allowed = False
+        self.startable = False
+        self.program_remote_control_active = False
         self._program_selected = ""
         self.program_remaining_time_sec = 0
         self.__program_progress = 0
-        self.program_remote_control_active = ""
         self.__program_local_control_active = ""
         self._power = ""
         self._door = ""
@@ -131,7 +108,7 @@ class Appliance(EventListener):
         self._on_value_changed_event(event)
 
     def on_status_event(self, event):
-        logging.debug(self.name + " status event: " + str(event.data))
+        #logging.debug(self.name + " status event: " + str(event.data))
         self._on_value_changed_event(event)
 
     def _on_event_event(self, event):
@@ -148,10 +125,10 @@ class Appliance(EventListener):
     def _reload_status_and_settings(self):
         self.last_refresh = datetime.now()
         try:
-            settings = self._perform_get('/settings').get('data', {}).get('settings', {})
+            settings = self.__perform_get('/settings').get('data', {}).get('settings', {})
             self._on_values_changed(settings, "reload settings")
 
-            status = self._perform_get('/status').get('data', {}).get('status', {})
+            status = self.__perform_get('/status').get('data', {}).get('status', {})
             self._on_values_changed(status, "reload status")
         except Exception as e:
             self._on_reload_status_and_settings_error(e)
@@ -212,7 +189,7 @@ class Appliance(EventListener):
 
     def _reload_selected_program(self):
         # query the selected program
-        selected_data = self._perform_get('/programs/selected').get('data', {})
+        selected_data = self.__perform_get('/programs/selected').get('data', {})
         self._program_selected = selected_data.get('key', "")
         logging.info(self.name + " program selected: " + str(self._program_selected) + " (reload program)")
         selected_options = selected_data.get('options', "")
@@ -221,14 +198,14 @@ class Appliance(EventListener):
         # query available options of the selected program
         if len(self._program_selected) > 0:
             try:
-                available_data = self._perform_get('/programs/available/' + self._program_selected).get('data', {})
+                available_data = self.__perform_get('/programs/available/' + self._program_selected).get('data', {})
                 available_options = available_data.get('options', "")
                 self._on_values_changed(available_options, "reload program")
             except Exception as e:
                 logging.warning("error occurred fetching program options of " + self._program_selected + " " + str(e))
         self._notify_listeners()
 
-    def _perform_get(self, path:str) -> Dict[str, Any]:
+    def __perform_get(self, path:str) -> Dict[str, Any]:
         self.request_counter.inc()
         uri = self._device_uri + path
         response = requests.get(uri, headers={"Authorization": "Bearer " + self._auth.access_token}, timeout=5000)
@@ -309,6 +286,13 @@ class Dishwasher(Appliance):
             return super()._on_value_changed(key, change, source)
         return True
 
+    def _notify_listeners(self):
+        self.startable = self.door.lower() == "closed" and \
+                         self.power.lower() == "on" and \
+                         self.remote_start_allowed and \
+                         self.operation.lower() not in ['delayedstart','run', 'finished', 'inactive']
+        super()._notify_listeners()
+
     def read_start_date(self) -> str:
         start_date = datetime.now() + timedelta(seconds=self.__program_start_in_relative_sec)
         if start_date > datetime.now():
@@ -323,7 +307,7 @@ class Dishwasher(Appliance):
         if len(self._program_selected) == 0:
             logging.warning("ignoring start command. No program selected")
 
-        elif self._operation in ["BSH.Common.EnumType.OperationState.Ready"]:
+        elif self.startable:
             remaining_secs_to_wait = int((datetime.fromisoformat(start_date) - datetime.now()).total_seconds())
             if remaining_secs_to_wait < 0:
                 remaining_secs_to_wait = 0
@@ -412,6 +396,14 @@ class Dryer(Appliance):
             return super()._on_value_changed(key, change, source)
         return True
 
+    def _notify_listeners(self):
+        self.startable = self.door.lower() == "closed" and \
+                         self.power.lower() == "on" and \
+                         self.remote_start_allowed and \
+                         self.program_remote_control_active and \
+                         self.operation.lower() not in ['delayedstart','run', 'finished', 'inactive']
+        super()._notify_listeners()
+
     def __compute_program_duration(self):
         duration = self.__program_finish_in_relative_sec
         if duration == 0:
@@ -444,7 +436,7 @@ class Dryer(Appliance):
         if len(self._program_selected) == 0:
             logging.warning("ignoring start command. No program selected")
 
-        elif self._operation in ["BSH.Common.EnumType.OperationState.Ready", ''] and self.power.upper() == 'ON':
+        elif self.startable:
             self.__program_duration_sec = self.__compute_program_duration()
             remaining_secs_to_finish = int((datetime.fromisoformat(end_date) - datetime.now()).total_seconds())
             if remaining_secs_to_finish < 0:
