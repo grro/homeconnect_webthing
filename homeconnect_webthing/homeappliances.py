@@ -382,7 +382,6 @@ class Dryer(Appliance):
                 logging.info(self.name + " field 'finish in relative': " + str(self.__program_finish_in_relative_sec) + " (" + source + ")")
             if 'constraints' in change.keys():
                 constraints = change['constraints']
-                print(constraints)
                 if 'max' in constraints.keys():
                     self.__program_finish_in_relative_max_sec = constraints['max']
                     logging.info(self.name + " field 'program_finish_in_relative_max_sec: " + str(self.__program_finish_in_relative_max_sec) + " (" + source + ")")
@@ -413,7 +412,8 @@ class Dryer(Appliance):
     def __compute_program_duration(self):
         duration = self.__program_finish_in_relative_sec
         if duration == 0:
-            duration = 2.5 * 60*60
+            logging.info("duration is 0 sec. Fix this by using an average duration of 2.5 hours")
+            duration = 2.5 * 60 * 60
         return duration
 
     def read_end_date(self) -> str:
@@ -434,7 +434,7 @@ class Dryer(Appliance):
     def write_start_date(self, start_date: str):
         self._reload_selected_program()  # refresh to ensure that current program is read
         end_date = (datetime.fromisoformat(start_date) + timedelta(seconds=self.__compute_program_duration())).isoformat()
-        logging.info("end date " + end_date + " computed based on start date " + start_date + " and program " + self._program_selected + " duration of " + print_duration(self.__compute_program_duration()))
+        logging.info("end date " + end_date + " computed based on start date " + start_date + " and program " + self._program_selected + " duration of " + str(self.__compute_program_duration()) + "(" + print_duration(self.__compute_program_duration()) + ")")
         self.write_end_date(end_date)
 
     def write_end_date(self, end_date: str):
@@ -443,19 +443,19 @@ class Dryer(Appliance):
             logging.warning("ignoring start command. No program selected")
 
         elif self.startable:
-            self.__program_duration_sec = self.__compute_program_duration()
+            duration_sec = self.__compute_program_duration()
             remaining_secs_to_finish = int((datetime.fromisoformat(end_date) - datetime.now()).total_seconds())
-            logging.info("remaining_secs_to_finish " + print_duration(remaining_secs_to_finish) + " computed based on end date " + end_date)
+            logging.info("remaining_secs_to_finish " + str(remaining_secs_to_finish) + " (" + print_duration(remaining_secs_to_finish) + ") computed based on end date " + end_date)
             if remaining_secs_to_finish < 0:
                 logging.info("remaining_secs_to_finish is < 0. set it with 0")
                 remaining_secs_to_finish = 0
             if remaining_secs_to_finish > self.__program_finish_in_relative_max_sec:
-                logging.info("remaining_secs_to_finish " + print_duration(remaining_secs_to_finish) + " > " + print_duration(self.__program_finish_in_relative_max_sec) + " max allowed. set it with " + print_duration(self.__program_finish_in_relative_max_sec))
+                logging.info("remaining_secs_to_finish " + str(remaining_secs_to_finish) + " (" + print_duration(remaining_secs_to_finish) + ") > " + print_duration(self.__program_finish_in_relative_max_sec) + " max allowed. set it with " + print_duration(self.__program_finish_in_relative_max_sec))
                 remaining_secs_to_finish = self.__program_finish_in_relative_max_sec
             stepsize = self.__program_finish_in_relative_stepsize_sec
             if stepsize > 0:
                 remaining_secs_to_finish = int(remaining_secs_to_finish / stepsize) * stepsize
-                logging.info("remaining_secs_to_finish " + print_duration(remaining_secs_to_finish) + " computed beed onn stepsize of " + str(stepsize) + " sec")
+                logging.info("remaining_secs_to_finish " + str(remaining_secs_to_finish) + " (" + print_duration(remaining_secs_to_finish) + ") computed based on stepsize of " + str(stepsize) + " sec")
             data = {
                 "data": {
                     "key": self._program_selected,
@@ -468,7 +468,7 @@ class Dryer(Appliance):
             }
             try:
                 self._perform_put("/programs/active", json.dumps(data, indent=2), max_trials=3)
-                logging.info(self.name + " program " + self.program_selected + " starts in " + print_duration(remaining_secs_to_finish - self.__compute_program_duration()))
+                logging.info(self.name + " program " + self.program_selected + " starts in " + print_duration(remaining_secs_to_finish - duration_sec) + " (duration: " + str(duration_sec) + ")")
             except Exception as e:
                 logging.warning("error occurred by starting " + self.name + " " + str(e))
         else:
