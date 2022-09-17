@@ -382,10 +382,13 @@ class Dryer(Appliance):
                 logging.info(self.name + " field 'finish in relative': " + str(self.__program_finish_in_relative_sec) + " (" + source + ")")
             if 'constraints' in change.keys():
                 constraints = change['constraints']
+                print(constraints)
                 if 'max' in constraints.keys():
                     self.__program_finish_in_relative_max_sec = constraints['max']
+                    logging.info(self.name + " field 'program_finish_in_relative_max_sec: " + str(self.__program_finish_in_relative_max_sec) + " (" + source + ")")
                 if 'stepsize' in constraints.keys():
                     self.__program_finish_in_relative_stepsize_sec = constraints['stepsize']
+                    logging.info(self.name + " field 'program_finish_in_relative_stepsize_sec: " + str(self.__program_finish_in_relative_stepsize_sec) + " (" + source + ")")
         elif key == 'LaundryCare.Dryer.Option.DryingTarget':
             self.__program_drying_target = change.get('value', "")
         elif key == 'LaundryCare.Dryer.Option.DryingTargetAdjustment':
@@ -442,14 +445,15 @@ class Dryer(Appliance):
         elif self.startable:
             self.__program_duration_sec = self.__compute_program_duration()
             remaining_secs_to_finish = int((datetime.fromisoformat(end_date) - datetime.now()).total_seconds())
-            logging.info("remaining_secs_to_finish " + print_duration(remaining_secs_to_finish) + " based on end date " + end_date)
+            logging.info("remaining_secs_to_finish " + print_duration(remaining_secs_to_finish) + " computed based on end date " + end_date)
             if remaining_secs_to_finish < 0:
                 logging.info("remaining_secs_to_finish is < 0. set it with 0")
                 remaining_secs_to_finish = 0
             if remaining_secs_to_finish > self.__program_finish_in_relative_max_sec:
                 logging.info("remaining_secs_to_finish " + print_duration(remaining_secs_to_finish) + " > " + print_duration(self.__program_finish_in_relative_max_sec) + " max allowed. set it with " + print_duration(self.__program_finish_in_relative_max_sec))
                 remaining_secs_to_finish = self.__program_finish_in_relative_max_sec
-            remaining_secs_to_finish = int(remaining_secs_to_finish / self.__program_finish_in_relative_stepsize_sec) * self.__program_finish_in_relative_stepsize_sec
+            if self.__program_finish_in_relative_stepsize_sec > 0:
+                remaining_secs_to_finish = int(remaining_secs_to_finish / self.__program_finish_in_relative_stepsize_sec) * self.__program_finish_in_relative_stepsize_sec
             data = {
                 "data": {
                     "key": self._program_selected,
