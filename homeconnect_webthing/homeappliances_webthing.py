@@ -356,17 +356,6 @@ class DryerThing(ApplianceThing):
                          'readOnly': False,
                  }))
 
-        self.end_date = Value(dryer.read_end_date(), dryer.write_end_date)
-        self.add_property(
-            Property(self,
-                     'program_end_date',
-                     self.end_date,
-                     metadata={
-                         'title': 'End date',
-                         "type": "string",
-                         'description': 'The end date',
-                         'readOnly': False,
-                     }))
 
         self.program_gentle = Value(dryer.program_gentle)
         self.add_property(
@@ -431,7 +420,6 @@ class DryerThing(ApplianceThing):
     def _on_value_changed(self, dryer: Dryer):
         super()._on_value_changed(dryer)
         self.start_date.notify_of_external_update(dryer.read_start_date())
-        self.end_date.notify_of_external_update(dryer.read_end_date())
         self.child_lock.notify_of_external_update(dryer.child_lock)
         self.program_gentle.notify_of_external_update(dryer.program_gentle)
         self.program_wrinkle_guard.notify_of_external_update(dryer.program_wrinkle_guard)
