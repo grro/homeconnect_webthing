@@ -325,7 +325,10 @@ class Dishwasher(Appliance):
             }
             try:
                 self._perform_put("/programs/active", json.dumps(data, indent=2), max_trials=3)
-                logging.info(self.name + " program " + self.program_selected + " starts in " + print_duration(remaining_secs_to_wait) + " (program duration " + print_duration(self.program_remaining_time_sec) + ")")
+                logging.info(self.name + " PROGRAMSTRART - program " + self.program_selected +
+                             " starts in " + print_duration(remaining_secs_to_wait) +
+                             " (duration " + print_duration(self.program_remaining_time_sec) + ")")
+
             except Exception as e:
                 logging.warning("error occurred by starting " + self.name + " " + str(e))
         else:
@@ -439,9 +442,12 @@ class Dryer(Appliance):
         elif self.startable:
             self.__program_duration_sec = self.__compute_program_duration()
             remaining_secs_to_finish = int((datetime.fromisoformat(end_date) - datetime.now()).total_seconds())
+            logging.info("remaining_secs_to_finish " + print_duration(remaining_secs_to_finish) + " based on end date " + end_date)
             if remaining_secs_to_finish < 0:
+                logging.info("remaining_secs_to_finish is < 0. set it with 0")
                 remaining_secs_to_finish = 0
             if remaining_secs_to_finish > self.__program_finish_in_relative_max_sec:
+                logging.info("remaining_secs_to_finish " + print_duration(remaining_secs_to_finish) + " > " + print_duration(self.__program_finish_in_relative_max_sec) + " max allowed. set it with " + print_duration(self.__program_finish_in_relative_max_sec))
                 remaining_secs_to_finish = self.__program_finish_in_relative_max_sec
             remaining_secs_to_finish = int(remaining_secs_to_finish / self.__program_finish_in_relative_stepsize_sec) * self.__program_finish_in_relative_stepsize_sec
             data = {
