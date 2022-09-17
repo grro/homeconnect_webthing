@@ -468,6 +468,7 @@ class Dryer(Appliance):
                     }]
                 }
             }
+            logging.info("starting " + str(self._program_selected) + " with remaining_secs_to_finish" + str(remaining_secs_to_finish) + " (" + print_duration(remaining_secs_to_finish) + ")")
             try:
                 self._perform_put("/programs/active", json.dumps(data, indent=2), max_trials=3)
                 logging.info(self.name + " program " + self.program_selected + " starts in " + print_duration(remaining_secs_to_finish - duration_sec) + " (duration: " + str(duration_sec) + ")")
