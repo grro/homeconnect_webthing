@@ -452,8 +452,10 @@ class Dryer(Appliance):
             if remaining_secs_to_finish > self.__program_finish_in_relative_max_sec:
                 logging.info("remaining_secs_to_finish " + print_duration(remaining_secs_to_finish) + " > " + print_duration(self.__program_finish_in_relative_max_sec) + " max allowed. set it with " + print_duration(self.__program_finish_in_relative_max_sec))
                 remaining_secs_to_finish = self.__program_finish_in_relative_max_sec
-            if self.__program_finish_in_relative_stepsize_sec > 0:
-                remaining_secs_to_finish = int(remaining_secs_to_finish / self.__program_finish_in_relative_stepsize_sec) * self.__program_finish_in_relative_stepsize_sec
+            stepsize = self.__program_finish_in_relative_stepsize_sec
+            if stepsize > 0:
+                remaining_secs_to_finish = int(remaining_secs_to_finish / stepsize) * stepsize
+                logging.info("remaining_secs_to_finish " + print_duration(remaining_secs_to_finish) + " computed beed onn stepsize of " + str(stepsize) + " sec")
             data = {
                 "data": {
                     "key": self._program_selected,
