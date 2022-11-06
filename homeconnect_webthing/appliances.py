@@ -2,26 +2,21 @@ import logging
 import requests
 import json
 from time import sleep
-from threading import Thread
-from typing import List, Optional, Dict, Any
+from typing import List, Dict, Any
 from datetime import datetime, timedelta
 from homeconnect_webthing.auth import Auth
-from homeconnect_webthing.eventstream import EventListener, ReconnectingEventStream
-from homeconnect_webthing.utils import print_duration, DailyRequestCounter
-
-
-DRYER = 'dryer'
-DISHWASHER = 'dishwasher'
+from homeconnect_webthing.eventstream import EventListener
+from homeconnect_webthing.utils import print_duration, is_success
 
 
 
-def is_success(status_code: int) -> bool:
-    return status_code >= 200 and status_code <= 299
+class OfflineException(Exception):
+    pass
 
 
 class Appliance(EventListener):
 
-    def __init__(self, device_uri: str, auth: Auth, name: str, device_type: str, haid: str, brand: str, vib: str, enumber: str, request_counter: DailyRequestCounter):
+    def __init__(self, device_uri: str, auth: Auth, name: str, device_type: str, haid: str, brand: str, vib: str, enumber: str):
         self._device_uri = device_uri
         self._auth = auth
         self.name = name
@@ -30,11 +25,11 @@ class Appliance(EventListener):
         self.brand = brand
         self.vib = vib
         self.enumber = enumber
-        self.request_counter = request_counter
         self.__value_changed_listeners = set()
         self.last_refresh = datetime.now() - timedelta(hours=9)
         self.remote_start_allowed = False
         self.startable = False
+        self.started = False
         self.program_remote_control_active = False
         self._program_selected = ""
         self.program_remaining_time_sec = 0
@@ -131,10 +126,10 @@ class Appliance(EventListener):
             status = self.__perform_get('/status').get('data', {}).get('status', {})
             self._on_values_changed(status, "reload status")
         except Exception as e:
-            self._on_reload_status_and_settings_error(e)
-
-    def _on_reload_status_and_settings_error(self, e):
-        logging.warning(self.name + " error occurred on refreshing" + str(e))
+            if isinstance(e, OfflineException):
+                logging.info(self.name + " is offline")
+            else:
+                logging.warning(self.name + " error occurred on refreshing" + str(e))
 
     def _on_values_changed(self, changes: List[Dict[str, Any]], source: str):
         if len(changes) > 0:
@@ -206,17 +201,19 @@ class Appliance(EventListener):
         self._notify_listeners()
 
     def __perform_get(self, path:str) -> Dict[str, Any]:
-        self.request_counter.inc()
         uri = self._device_uri + path
         response = requests.get(uri, headers={"Authorization": "Bearer " + self._auth.access_token}, timeout=5000)
         if is_success(response.status_code):
             return response.json()
         else:
+            if response.status_code == 409:
+                msg = response.json()
+                if msg.get("error", {}).get('key', "") == "SDK.Error.HomeAppliance.Connection.Initialization.Failed":
+                    raise OfflineException()
             raise Exception("error occurred by calling GET " + uri + " Got " + str(response.status_code) + " " + response.text)
 
     def _perform_put(self, path:str, data: str, max_trials: int = 3, current_trial: int = 1):
         uri = self._device_uri + path
-        self.request_counter.inc()
         response = requests.put(uri, data=data, headers={"Content-Type": "application/json", "Authorization": "Bearer " + self._auth.access_token}, timeout=5000)
         if not is_success(response.status_code):
             logging.warning("error occurred by calling PUT (" + str(current_trial) + ". trial) " + uri + " " + data)
@@ -245,8 +242,9 @@ class Appliance(EventListener):
 
 
 class Dishwasher(Appliance):
+    DeviceType = 'dishwasher'
 
-    def __init__(self, device_uri: str, auth: Auth, name: str, device_type: str, haid: str, brand: str, vib: str, enumber: str, request_counter: DailyRequestCounter):
+    def __init__(self, device_uri: str, auth: Auth, name: str, device_type: str, haid: str, brand: str, vib: str, enumber: str):
         self.__program_start_in_relative_sec = 0
         self.__program_start_in_relative_sec_max = 86000
         self.program_extra_try = ""
@@ -254,7 +252,7 @@ class Dishwasher(Appliance):
         self.program_vario_speed_plus = ""
         self.program_energy_forecast_percent = 0
         self.program_water_forecast_percent = 0
-        super().__init__(device_uri, auth, name, device_type, haid, brand, vib, enumber, request_counter)
+        super().__init__(device_uri, auth, name, device_type, haid, brand, vib, enumber)
 
     def _on_value_changed(self, key: str, change: Dict[str, Any], source: str) -> bool:
         if key == 'BSH.Common.Option.StartInRelative':
@@ -291,6 +289,9 @@ class Dishwasher(Appliance):
                          self.power.lower() == "on" and \
                          self.remote_start_allowed and \
                          self.operation.lower() not in ['delayedstart','run', 'finished', 'inactive']
+        self.started = self.power.lower() == "on" and \
+                       self.door.lower() == "closed" and \
+                       self.operation.lower() in ['delayedstart', 'run']
         super()._notify_listeners()
 
     def read_start_date(self) -> str:
@@ -336,8 +337,9 @@ class Dishwasher(Appliance):
 
 
 class Dryer(Appliance):
+    DeviceType = 'dryer'
 
-    def __init__(self, device_uri: str, auth: Auth, name: str, device_type: str, haid: str, brand: str, vib: str, enumber: str, request_counter: DailyRequestCounter):
+    def __init__(self, device_uri: str, auth: Auth, name: str, device_type: str, haid: str, brand: str, vib: str, enumber: str):
         self.__program_finish_in_relative_sec = 0
         self.__program_finish_in_relative_max_sec = 86000
         self.__program_finish_in_relative_stepsize_sec = 60
@@ -346,13 +348,7 @@ class Dryer(Appliance):
         self.__program_drying_target_adjustment = ""
         self.__program_wrinkle_guard = ""
         self.__start_date = ""
-        super().__init__(device_uri, auth, name, device_type, haid, brand, vib, enumber, request_counter)
-
-    def _on_reload_status_and_settings_error(self, e):
-        logging.warning("error occurred on refreshing " + str(e))
-        logging.info(self.name + " seems to be offline")
-        self._power = 'BSH.Common.EnumType.PowerState.Off'
-        self._notify_listeners()
+        super().__init__(device_uri, auth, name, device_type, haid, brand, vib, enumber)
 
     @property
     def program_wrinkle_guard(self) -> str:
@@ -407,6 +403,9 @@ class Dryer(Appliance):
                          self.remote_start_allowed and \
                          self.program_remote_control_active and \
                          self.operation.lower() not in ['delayedstart','run', 'finished', 'inactive']
+        self.started = self.power.lower() == "on" and \
+                       self.door.lower() == "closed" and \
+                       self.operation.lower() in ['delayedstart', 'run']
         super()._notify_listeners()
 
     def read_start_date(self) -> str:
@@ -449,113 +448,93 @@ class Dryer(Appliance):
             logging.warning("ignoring start command. " + self.name + " is in state " + self._operation + " power: " + self.power)
 
 
+class FinishInAppliance(Appliance):
 
-def create_appliance(uri: str, auth: Auth, name: str, device_type: str, haid: str, brand: str, vib: str, enumber: str, request_counter: DailyRequestCounter) -> Optional[Appliance]:
-    if device_type.lower() == DISHWASHER:
-        return Dishwasher(uri, auth, name, device_type, haid, brand, vib, enumber, request_counter)
-    elif device_type.lower() == DRYER:
-        return Dryer(uri, auth, name, device_type, haid, brand, vib, enumber, request_counter)
-    else:
-        return None
+    def __init__(self, device_uri: str, auth: Auth, name: str, device_type: str, haid: str, brand: str, vib: str, enumber: str):
+        self.__program_finish_in_relative_sec = 0
+        self.__program_finish_in_relative_max_sec = 86000
+        self.__program_finish_in_relative_stepsize_sec = 60
+        self.__start_date = ""
+        super().__init__(device_uri, auth, name, device_type, haid, brand, vib, enumber)
 
-
-
-class HomeConnect:
-
-    API_URI = "https://api.home-connect.com/api"
-
-    def __init__(self, refresh_token: str, client_secret: str):
-        self.notify_listeners: List[EventListener] = list()
-        self.auth = Auth(refresh_token, client_secret)
-        self.request_counter = DailyRequestCounter()
-        Thread(target=self.__start_consuming_events, daemon=True).start()
-
-    # will be called by a background thread
-    def __start_consuming_events(self):
-        sleep(5)
-        ReconnectingEventStream(HomeConnect.API_URI + "/homeappliances/events",
-                                self.auth,
-                                self,
-                                self.request_counter,
-                                read_timeout_sec=3*60,
-                                max_lifetime_sec=7*60*60).consume()
-
-    def __is_assigned(self, notify_listener: EventListener, event):
-        return event is None or event.id is None or event.id == notify_listener.id()
-
-    def on_connected(self, event):
-        for notify_listener in self.notify_listeners:
-            if self.__is_assigned(notify_listener, event):
-                notify_listener.on_connected(event)
-
-    def on_disconnected(self, event):
-        for notify_listener in self.notify_listeners:
-            if self.__is_assigned(notify_listener, event):
-                notify_listener.on_disconnected(event)
-
-    def on_keep_alive_event(self, event):
-        for notify_listener in self.notify_listeners:
-            if self.__is_assigned(notify_listener, event):
-                notify_listener.on_keep_alive_event(event)
-
-    def on_notify_event(self, event):
-        for notify_listener in self.notify_listeners:
-            if self.__is_assigned(notify_listener, event):
-                notify_listener.on_notify_event(event)
-
-    def on_status_event(self, event):
-        for notify_listener in self.notify_listeners:
-            if self.__is_assigned(notify_listener, event):
-                notify_listener.on_status_event(event)
-
-    def on_event_event(self, event):
-        for notify_listener in self.notify_listeners:
-            if self.__is_assigned(notify_listener, event):
-                notify_listener.on_event_event(event)
-
-    def appliances(self) -> List[Appliance]:
-        uri = HomeConnect.API_URI + "/homeappliances"
-        logging.info("requesting " + uri)
-        response = requests.get(uri, headers={"Authorization": "Bearer " + self.auth.access_token}, timeout=5000)
-        if is_success(response.status_code):
-            data = response.json()
-            devices = list()
-            for homeappliances in data['data']['homeappliances']:
-                device = create_appliance(HomeConnect.API_URI + "/homeappliances/" + homeappliances['haId'],
-                                          self.auth,
-                                          homeappliances['name'],
-                                          homeappliances['type'],
-                                          homeappliances['haId'],
-                                          homeappliances['brand'],
-                                          homeappliances['vib'],
-                                          homeappliances['enumber'],
-                                          self.request_counter)
-                if device is not None:
-                    self.notify_listeners.append(device)
-                    devices.append(device)
-            return devices
+    def _on_value_changed(self, key: str, change: Dict[str, Any], source: str) -> bool:
+        if key == 'BSH.Common.Option.FinishInRelative':  # supported by dryer & washer only
+            if 'value' in change.keys():
+                self.__program_finish_in_relative_sec = int(change['value'])
+                logging.info(self.name + " field 'finish in relative': " + str(self.__program_finish_in_relative_sec) + " (" + source + ")")
+            if 'constraints' in change.keys():
+                constraints = change['constraints']
+                if 'max' in constraints.keys():
+                    self.__program_finish_in_relative_max_sec = constraints['max']
+                    logging.info(self.name + " field 'program_finish_in_relative_max_sec: " + str(self.__program_finish_in_relative_max_sec) + " (" + source + ")")
+                if 'stepsize' in constraints.keys():
+                    self.__program_finish_in_relative_stepsize_sec = constraints['stepsize']
+                    logging.info(self.name + " field 'program_finish_in_relative_stepsize_sec: " + str(self.__program_finish_in_relative_stepsize_sec) + " (" + source + ")")
         else:
-            logging.warning("error occurred by calling GET " + uri)
-            logging.warning("got " + str(response.status_code) + " " + response.text)
-            raise Exception("error occurred by calling GET " + uri + " Got " + str(response))
+            # unhandled
+            return super()._on_value_changed(key, change, source)
+        return True
 
-    def dishwashers(self) -> List[Dishwasher]:
-        return [device for device in self.appliances() if isinstance(device, Dishwasher)]
+    def _notify_listeners(self):
+        self.startable = self.door.lower() == "closed" and \
+                         self.power.lower() == "on" and \
+                         self.remote_start_allowed and \
+                         self.program_remote_control_active and \
+                         self.operation.lower() not in ['delayedstart','run', 'finished', 'inactive']
+        super()._notify_listeners()
 
-    def dishwasher(self) -> Optional[Dishwasher]:
-        dishwashers = self.dishwashers()
-        if len(dishwashers) > 0:
-            return dishwashers[0]
+    def read_start_date(self) -> str:
+        if self.operation.lower() == 'delayedstart':
+            return self.__start_date
         else:
-            return None
+            return ""
 
-    def dryers(self) -> List[Dryer]:
-        return [device for device in self.appliances() if isinstance(device, Dryer)]
-
-    def dryer(self) -> Optional[Dryer]:
-        dryers = self.dryers()
-        if len(dryers) > 0:
-            return dryers[0]
+    def write_start_date(self, start_date: str):
+        self._reload_selected_program()  # refresh to ensure that current program is read
+        if len(self._program_selected) == 0:
+            logging.warning("ignoring start command. No program selected")
+        elif self.startable:
+            duration_sec = self.__program_finish_in_relative_sec
+            remaining_secs_to_finish = int((datetime.fromisoformat(start_date) - datetime.now()).total_seconds()) + duration_sec
+            logging.info("remaining_secs_to_finish " + str(remaining_secs_to_finish) + " (" + print_duration(remaining_secs_to_finish) + ") computed based on start date " + start_date + " and duration " + print_duration(duration_sec))
+            if remaining_secs_to_finish < 0:
+                logging.info("remaining_secs_to_finish is < 0. set it with 0")
+                remaining_secs_to_finish = 0
+            if remaining_secs_to_finish > 0 and self.__program_finish_in_relative_stepsize_sec > 0:
+                remaining_secs_to_finish = int(remaining_secs_to_finish / self.__program_finish_in_relative_stepsize_sec) * self.__program_finish_in_relative_stepsize_sec
+                logging.info("remaining_secs_to_finish " + str(remaining_secs_to_finish) + " (" + print_duration(remaining_secs_to_finish) + ") computed based on stepsize of " + str(self.__program_finish_in_relative_stepsize_sec) + " sec")
+            data = {
+                "data": {
+                    "key": self._program_selected,
+                    "options": [{
+                        "key": "BSH.Common.Option.FinishInRelative",
+                        "value": remaining_secs_to_finish,
+                        "unit": "seconds"
+                    }]
+                }
+            }
+            try:
+                self._perform_put("/programs/active", json.dumps(data, indent=2), max_trials=3)
+                logging.info(self.name + " program " + self.program_selected + " starts at " + start_date)
+                self.__start_date = start_date
+            except Exception as e:
+                logging.warning("error occurred by starting " + self.name + " " + str(e))
         else:
-            return None
+            logging.warning("ignoring start command. " + self.name + " is in state " + self._operation + " power: " + self.power)
+
+
+class Washer(FinishInAppliance):
+    DeviceType = 'washer'
+
+    def __init__(self, device_uri: str, auth: Auth, name: str, device_type: str, haid: str, brand: str, vib: str, enumber: str):
+        super().__init__(device_uri, auth, name, device_type, haid, brand, vib, enumber)
+
+    def _on_value_changed(self, key: str, change: Dict[str, Any], source: str) -> bool:
+        if key == 'BSH.Common.Option.TTTT':
+            print("stop")
+        else:
+            # unhandled
+            return super()._on_value_changed(key, change, source)
+        return True
+
 

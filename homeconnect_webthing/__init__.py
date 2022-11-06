@@ -1,7 +1,7 @@
 import logging
 from homeconnect_webthing.app import App, ArgumentSpec
 from homeconnect_webthing.auth import Auth
-from homeconnect_webthing.homeappliances_webthing import run_server
+from homeconnect_webthing.appliances_webthing import run_server
 
 
 logging.getLogger('sseclient').setLevel(logging.WARNING)

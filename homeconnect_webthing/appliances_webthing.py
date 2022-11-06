@@ -1,7 +1,8 @@
 from webthing import (MultipleThings, Property, Thing, Value, WebThingServer)
 import logging
 import tornado.ioloop
-from homeconnect_webthing.homeappliances import HomeConnect, Appliance, Dishwasher, Dryer, DISHWASHER, DRYER
+from homeconnect_webthing.appliances import Appliance, Dishwasher, Dryer, Washer
+from homeconnect_webthing.homeconnect import HomeConnect
 
 
 
@@ -93,18 +94,6 @@ class ApplianceThing(Thing):
                          'readOnly': True,
                      }))
 
-        self.request_count = Value(appliance.request_counter)
-        self.add_property(
-            Property(self,
-                     'request_count_today',
-                     self.request_count,
-                     metadata={
-                         'title': 'Request count today',
-                         "type": "integer",
-                         'description': 'The number of executed request today',
-                         'readOnly': True,
-                     }))
-
         self.power = Value(appliance.power)
         self.add_property(
             Property(self,
@@ -165,6 +154,18 @@ class ApplianceThing(Thing):
                          'readOnly': True,
                      }))
 
+        self.started = Value(appliance.started)
+        self.add_property(
+            Property(self,
+                     'started',
+                     self.started,
+                     metadata={
+                         'title': 'Started',
+                         "type": "boolean",
+                         'description': 'True, if the appliance is (delayed) started',
+                         'readOnly': True,
+                     }))
+
         self.remote_control_active = Value(appliance.program_remote_control_active)
         self.add_property(
             Property(self,
@@ -215,6 +216,7 @@ class ApplianceThing(Thing):
         self.operation.notify_of_external_update(self.appliance.operation)
         self.remote_start_allowed.notify_of_external_update(self.appliance.remote_start_allowed)
         self.startable.notify_of_external_update(self.appliance.startable)
+        self.started.notify_of_external_update(self.appliance.started)
         self.remote_control_active.notify_of_external_update(self.appliance.program_remote_control_active)
         self.enumber.notify_of_external_update(self.appliance.enumber)
         self.vib.notify_of_external_update(self.appliance.vib)
@@ -224,7 +226,6 @@ class ApplianceThing(Thing):
         self.device_type.notify_of_external_update(self.appliance.device_type)
         self.program_progress.notify_of_external_update(appliance.program_progress)
         self.selected_program.notify_of_external_update(appliance.program_selected)
-        self.request_count.notify_of_external_update(appliance.request_counter.count)
 
 
     def __hash__(self):
@@ -278,7 +279,6 @@ class DishwasherThing(ApplianceThing):
                          'description': 'Hygiene Plus Option',
                          'readOnly': True,
                      }))
-
 
         self.program_extra_try = Value(dishwasher.program_extra_try)
         self.add_property(
@@ -427,13 +427,37 @@ class DryerThing(ApplianceThing):
         self.program_drying_target_adjustment.notify_of_external_update(dryer.program_drying_target_adjustment)
 
 
+class WasherThing(ApplianceThing):
+
+    def __init__(self, description: str, washer: Washer):
+        super().__init__(description, washer)
+
+        self.start_date = Value(washer.read_start_date(), washer.write_start_date)
+        self.add_property(
+            Property(self,
+                     'program_start_date',
+                     self.start_date,
+                     metadata={
+                         'title': 'Start date',
+                         "type": "string",
+                         'description': 'The start date',
+                         'readOnly': False,
+                     }))
+
+    def _on_value_changed(self, washer: Washer):
+        super()._on_value_changed(washer)
+        self.start_date.notify_of_external_update(washer.read_start_date())
+
+
 
 def run_server( description: str, port: int, refresh_token: str, client_secret: str):
     homeappliances = []
     for appliance in HomeConnect(refresh_token, client_secret).appliances():
-        if appliance.device_type.lower() == DISHWASHER:
+        if appliance.device_type.lower() == Dishwasher.DeviceType:
             homeappliances.append(DishwasherThing(description, appliance).activate())
-        elif appliance.device_type.lower() == DRYER:
+        elif appliance.device_type.lower() == Washer.DeviceType:
+            homeappliances.append(WasherThing(description, appliance).activate())
+        elif appliance.device_type.lower() == Dryer.DeviceType:
             homeappliances.append(DryerThing(description, appliance).activate())
     homeappliances.sort()
     logging.info(str(len(homeappliances)) + " homeappliances found: " + ", ".join([homeappliance.appliance.name + "/" + homeappliance.appliance.enumber for homeappliance in homeappliances]))
