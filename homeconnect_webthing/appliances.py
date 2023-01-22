@@ -296,7 +296,7 @@ class Dishwasher(Appliance):
                          self.operation.lower() not in ['run', 'finished', 'inactive']
         self.started = self.power.lower() == "on" and \
                        self.door.lower() == "closed" and \
-                       self.operation.lower() in ['run']
+                       self.operation.lower() in ['delayedstart', 'run']
         super()._notify_listeners()
 
     def read_start_date(self) -> str:
