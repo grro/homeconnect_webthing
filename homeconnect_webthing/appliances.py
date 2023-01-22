@@ -239,6 +239,11 @@ class Appliance(EventListener):
     def __eq__(self, other):
         return self.__fingerprint == other.__fingerprint
 
+    def __str__(self):
+        return self.name + " (" + self.device_type + ", " + self.vib + ")"
+
+    def __repr__(self):
+        return self.__str__()
 
 
 class Dishwasher(Appliance):
@@ -288,10 +293,10 @@ class Dishwasher(Appliance):
         self.startable = self.door.lower() == "closed" and \
                          self.power.lower() == "on" and \
                          self.remote_start_allowed and \
-                         self.operation.lower() not in ['delayedstart','run', 'finished', 'inactive']
+                         self.operation.lower() not in ['run', 'finished', 'inactive']
         self.started = self.power.lower() == "on" and \
                        self.door.lower() == "closed" and \
-                       self.operation.lower() in ['delayedstart', 'run']
+                       self.operation.lower() in ['run']
         super()._notify_listeners()
 
     def read_start_date(self) -> str:
@@ -314,24 +319,45 @@ class Dishwasher(Appliance):
                 remaining_secs_to_wait = 0
             if remaining_secs_to_wait > self.__program_start_in_relative_sec_max:
                 remaining_secs_to_wait = self.__program_start_in_relative_sec_max
-            data = {
-                "data": {
-                    "key": self._program_selected,
-                    "options": [{
-                                    "key": "BSH.Common.Option.StartInRelative",
-                                    "value": remaining_secs_to_wait,
-                                    "unit": "seconds"
-                                }]
-                }
-            }
-            try:
-                self._perform_put("/programs/active", json.dumps(data, indent=2), max_trials=3)
-                logging.info(self.name + " PROGRAMSTRART - program " + self.program_selected +
-                             " starts in " + print_duration(remaining_secs_to_wait) +
-                             " (duration " + print_duration(self.program_remaining_time_sec) + ")")
 
-            except Exception as e:
-                logging.warning("error occurred by starting " + self.name + " " + str(e))
+            # already in delayed start? (update start time?)
+            if self.operation.lower() in ['delayedstart']:
+                try:
+                    data = {
+                        "data": {
+                            "key": "BSH.Common.Option.StartInRelative",
+                            "value": remaining_secs_to_wait,
+                            "unit": "seconds"
+                        }
+                    }
+
+                    self._perform_put("/programs/active/options/BSH.Common.Option.StartInRelative", json.dumps(data, indent=2), max_trials=3)
+                    logging.info(self.name + " update start time: " + self.program_selected +
+                                 " starts in " + print_duration(remaining_secs_to_wait) +
+                                 " (duration " + print_duration(self.program_remaining_time_sec) + ")")
+                except Exception as e:
+                    logging.warning("error occurred by starting " + self.name + " " + str(e))
+
+            # start delayed
+            else:
+                try:
+                    data = {
+                        "data": {
+                            "key": self._program_selected,
+                            "options": [{
+                                "key": "BSH.Common.Option.StartInRelative",
+                                "value": remaining_secs_to_wait,
+                                "unit": "seconds"
+                            }]
+                        }
+                    }
+
+                    self._perform_put("/programs/active", json.dumps(data, indent=2), max_trials=3)
+                    logging.info(self.name + " PROGRAMSTRART - program " + self.program_selected +
+                                 " starts in " + print_duration(remaining_secs_to_wait) +
+                                 " (duration " + print_duration(self.program_remaining_time_sec) + ")")
+                except Exception as e:
+                    logging.warning("error occurred by starting " + self.name + " " + str(e))
         else:
             logging.warning("ignoring start command. " + self.name + " is in state " + self._operation)
 

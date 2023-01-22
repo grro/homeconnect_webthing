@@ -18,6 +18,7 @@ def create_appliance(uri: str, auth: Auth, name: str, device_type: str, haid: st
     elif device_type.lower() == Dryer.DeviceType:
         return Dryer(uri, auth, name, device_type, haid, brand, vib, enumber)
     else:
+        logging.warning("unknown device type " + device_type + " ignoring it")
         return None
 
 
