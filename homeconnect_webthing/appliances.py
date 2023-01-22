@@ -293,7 +293,7 @@ class Dishwasher(Appliance):
         self.startable = self.door.lower() == "closed" and \
                          self.power.lower() == "on" and \
                          self.remote_start_allowed and \
-                         self.operation.lower() not in ['run', 'finished', 'inactive']
+                         self.operation.lower() not in ['delayedstart', 'run', 'finished', 'inactive']
         self.started = self.power.lower() == "on" and \
                        self.door.lower() == "closed" and \
                        self.operation.lower() in ['delayedstart', 'run']
@@ -360,6 +360,7 @@ class Dishwasher(Appliance):
                     logging.warning("error occurred by starting " + self.name + " " + str(e))
         else:
             logging.warning("ignoring start command. " + self.name + " is in state " + self._operation)
+        self._notify_listeners()
 
 
 class Dryer(Appliance):
@@ -472,7 +473,7 @@ class Dryer(Appliance):
                 logging.warning("error occurred by starting " + self.name + " " + str(e))
         else:
             logging.warning("ignoring start command. " + self.name + " is in state " + self._operation + " power: " + self.power)
-
+        self._notify_listeners()
 
 class FinishInAppliance(Appliance):
 
