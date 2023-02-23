@@ -13,7 +13,7 @@ from homeconnect_webthing.utils import is_success
 def create_appliance(uri: str, auth: Auth, name: str, device_type: str, haid: str, brand: str, vib: str, enumber: str) -> Optional[Appliance]:
     if device_type.lower() == Dishwasher.DeviceType:
         return Dishwasher(uri, auth, name, device_type, haid, brand, vib, enumber)
-    elif device_type.lower() == Washer.DeviceType:
+    if device_type.lower() == Washer.DeviceType:
         return Washer(uri, auth, name, device_type, haid, brand, vib, enumber)
     elif device_type.lower() == Dryer.DeviceType:
         return Dryer(uri, auth, name, device_type, haid, brand, vib, enumber)
@@ -30,7 +30,36 @@ class HomeConnect:
     def __init__(self, refresh_token: str, client_secret: str):
         self.notify_listeners: List[EventListener] = list()
         self.auth = Auth(refresh_token, client_secret)
+        self.appliances: List[Appliance] = []
+        self.refresh_devices()
         Thread(target=self.__start_consuming_events, daemon=True).start()
+
+    def refresh_devices(self):
+        uri = HomeConnect.API_URI + "/homeappliances"
+        logging.info("requesting " + uri)
+        response = requests.get(uri, headers={"Authorization": "Bearer " + self.auth.access_token}, timeout=5000)
+        if is_success(response.status_code):
+            data = response.json()
+            fetch_appliances = list()
+            for homeappliances in data['data']['homeappliances']:
+                appliances = create_appliance(HomeConnect.API_URI + "/homeappliances/" + homeappliances['haId'],
+                                              self.auth,
+                                              homeappliances['name'],
+                                              homeappliances['type'],
+                                              homeappliances['haId'],
+                                              homeappliances['brand'],
+                                              homeappliances['vib'],
+                                              homeappliances['enumber'])
+                if appliances is None:
+                    logging.warning("unsupported device type: " + homeappliances['type'] + " (" + homeappliances['haId'] + "). Ignoring it")
+                else:
+                    self.notify_listeners.append(appliances)
+                    fetch_appliances.append(appliances)
+            self.appliances = fetch_appliances
+        else:
+            logging.warning("error occurred by calling GET " + uri)
+            logging.warning("got " + str(response.status_code) + " " + response.text)
+            raise Exception("error occurred by calling GET " + uri + " Got " + str(response))
 
     # will be called by a background thread
     def __start_consuming_events(self):
@@ -74,35 +103,8 @@ class HomeConnect:
             if self.__is_assigned(notify_listener, event):
                 notify_listener.on_event_event(event)
 
-    def appliances(self) -> List[Appliance]:
-        uri = HomeConnect.API_URI + "/homeappliances"
-        logging.info("requesting " + uri)
-        response = requests.get(uri, headers={"Authorization": "Bearer " + self.auth.access_token}, timeout=5000)
-        if is_success(response.status_code):
-            data = response.json()
-            devices = list()
-            for homeappliances in data['data']['homeappliances']:
-                device = create_appliance(HomeConnect.API_URI + "/homeappliances/" + homeappliances['haId'],
-                                          self.auth,
-                                          homeappliances['name'],
-                                          homeappliances['type'],
-                                          homeappliances['haId'],
-                                          homeappliances['brand'],
-                                          homeappliances['vib'],
-                                          homeappliances['enumber'])
-                if device is None:
-                    logging.warning("unsupported device type: " + homeappliances['type'] + " (" + homeappliances['haId'] + "). Ignoring it")
-                else:
-                    self.notify_listeners.append(device)
-                    devices.append(device)
-            return devices
-        else:
-            logging.warning("error occurred by calling GET " + uri)
-            logging.warning("got " + str(response.status_code) + " " + response.text)
-            raise Exception("error occurred by calling GET " + uri + " Got " + str(response))
-
     def dishwashers(self) -> List[Dishwasher]:
-        return [device for device in self.appliances() if isinstance(device, Dishwasher)]
+        return [device for device in self.appliances if isinstance(device, Dishwasher)]
 
     def dishwasher(self) -> Optional[Dishwasher]:
         dishwashers = self.dishwashers()
@@ -112,7 +114,7 @@ class HomeConnect:
             return None
 
     def dryers(self) -> List[Dryer]:
-        return [device for device in self.appliances() if isinstance(device, Dryer)]
+        return [device for device in self.appliances if isinstance(device, Dryer)]
 
     def dryer(self) -> Optional[Dryer]:
         dryers = self.dryers()
@@ -122,7 +124,7 @@ class HomeConnect:
             return None
 
     def washers(self) -> List[Washer]:
-        return [device for device in self.appliances() if isinstance(device, Washer)]
+        return [device for device in self.appliances if isinstance(device, Washer)]
 
     def washer(self) -> Optional[Washer]:
         washers = self.washers()

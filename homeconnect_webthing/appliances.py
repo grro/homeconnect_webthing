@@ -4,6 +4,9 @@ import json
 from time import sleep
 from typing import List, Dict, Any
 from datetime import datetime, timedelta
+from os.path import exists, join
+from os import makedirs
+from appdirs import site_data_dir
 from homeconnect_webthing.auth import Auth
 from homeconnect_webthing.eventstream import EventListener
 from homeconnect_webthing.utils import print_duration, is_success
@@ -89,21 +92,19 @@ class Appliance(EventListener):
             value_changed_listener()
 
     def on_connected(self, event):
-        logging.info(self.name + " device has been connected")
+        logging.info(self.name + " has been connected (event stream). Reloading status/settings")
         self._reload_status_and_settings()
 
     def on_disconnected(self, event):
-        logging.info(self.name + " device has been disconnected")
+        logging.info(self.name + " has been disconnected (event stream)")
 
     def on_keep_alive_event(self, event):
         self._notify_listeners()
 
     def on_notify_event(self, event):
-        logging.debug(self.name + " notify event: " + str(event.data))
         self._on_value_changed_event(event)
 
     def on_status_event(self, event):
-        #logging.debug(self.name + " status event: " + str(event.data))
         self._on_value_changed_event(event)
 
     def _on_event_event(self, event):
@@ -120,14 +121,14 @@ class Appliance(EventListener):
     def _reload_status_and_settings(self):
         self.last_refresh = datetime.now()
         try:
-            settings = self.__perform_get('/settings').get('data', {}).get('settings', {})
+            settings = self._perform_get('/settings').get('data', {}).get('settings', {})
             self._on_values_changed(settings, "reload settings")
 
-            status = self.__perform_get('/status').get('data', {}).get('status', {})
+            status = self._perform_get('/status').get('data', {}).get('status', {})
             self._on_values_changed(status, "reload status")
         except Exception as e:
             if isinstance(e, OfflineException):
-                logging.info(self.name + " is offline")
+                logging.info(self.name + " is offline. Could not query current status/settings")
             else:
                 logging.warning(self.name + " error occurred on refreshing" + str(e))
 
@@ -184,7 +185,7 @@ class Appliance(EventListener):
 
     def _reload_selected_program(self):
         # query the selected program
-        selected_data = self.__perform_get('/programs/selected').get('data', {})
+        selected_data = self._perform_get('/programs/selected').get('data', {})
         self._program_selected = selected_data.get('key', "")
         logging.info(self.name + " program selected: " + str(self._program_selected) + " (reload program)")
         selected_options = selected_data.get('options', "")
@@ -193,14 +194,14 @@ class Appliance(EventListener):
         # query available options of the selected program
         if len(self._program_selected) > 0:
             try:
-                available_data = self.__perform_get('/programs/available/' + self._program_selected).get('data', {})
+                available_data = self._perform_get('/programs/available/' + self._program_selected).get('data', {})
                 available_options = available_data.get('options', "")
                 self._on_values_changed(available_options, "reload program")
             except Exception as e:
                 logging.warning("error occurred fetching program options of " + self._program_selected + " " + str(e))
         self._notify_listeners()
 
-    def __perform_get(self, path:str) -> Dict[str, Any]:
+    def _perform_get(self, path:str) -> Dict[str, Any]:
         uri = self._device_uri + path
         response = requests.get(uri, headers={"Authorization": "Bearer " + self._auth.access_token}, timeout=5000)
         if is_success(response.status_code):
@@ -320,7 +321,7 @@ class Dishwasher(Appliance):
             if remaining_secs_to_wait > self.__program_start_in_relative_sec_max:
                 remaining_secs_to_wait = self.__program_start_in_relative_sec_max
 
-            # already in delayed start? (update start time?)
+            # update starttime (already started in a delayed manner
             if self.operation.lower() in ['delayedstart']:
                 try:
                     data = {
@@ -338,7 +339,7 @@ class Dishwasher(Appliance):
                 except Exception as e:
                     logging.warning("error occurred by starting " + self.name + " " + str(e))
 
-            # start delayed
+            # start in a delayed manner
             else:
                 try:
                     data = {
@@ -363,18 +364,234 @@ class Dishwasher(Appliance):
         self._notify_listeners()
 
 
-class Dryer(Appliance):
+class FinishInAppliance(Appliance):
+
+    def __init__(self, device_uri: str, auth: Auth, name: str, device_type: str, haid: str, brand: str, vib: str, enumber: str):
+        super().__init__(device_uri, auth, name, device_type, haid, brand, vib, enumber)
+        self._program_finish_in_relative_sec = 0
+        self.__program_finish_in_relative_max_sec = 86000
+        self.__program_finish_in_relative_stepsize_sec = 60
+        self.__start_date = ""
+
+    def __file(self) -> str:
+        dir = site_data_dir("HomeConnect", appauthor=False)
+        if not exists(dir):
+            makedirs(dir)
+        file = join(dir, self.haid + '_config.json')
+        return file
+
+    def _on_value_changed(self, key: str, change: Dict[str, Any], source: str) -> bool:
+        if key == 'BSH.Common.Option.FinishInRelative':  # supported by dryer & washer only
+            if 'value' in change.keys():
+                self._program_finish_in_relative_sec = int(change['value'])
+                logging.info(self.name + " field 'finish in relative': " + str(self._program_finish_in_relative_sec) + " (" + source + ")")
+            if 'constraints' in change.keys():
+                constraints = change['constraints']
+                if 'max' in constraints.keys():
+                    self.__program_finish_in_relative_max_sec = constraints['max']
+                    logging.info(self.name + " field 'program_finish_in_relative_max_sec: " + str(self.__program_finish_in_relative_max_sec) + " (" + source + ")")
+                if 'stepsize' in constraints.keys():
+                    self.__program_finish_in_relative_stepsize_sec = constraints['stepsize']
+                    logging.info(self.name + " field 'program_finish_in_relative_stepsize_sec: " + str(self.__program_finish_in_relative_stepsize_sec) + " (" + source + ")")
+        elif key == 'BSH.Common.Root.SelectedProgram':
+            program_selected = change.get('value', None)
+            if program_selected is not None and len(program_selected) > 0:
+                self._program_selected = program_selected
+                logging.info(self.name + " field 'selected program': " + str(self._program_selected) + " (" + source + ")")
+        else:
+            # unhandled
+            return super()._on_value_changed(key, change, source)
+        return True
+
+    def _notify_listeners(self):
+        self.startable = self.door.lower() == "closed" and \
+                         self.power.lower() == "on" and \
+                         self.remote_start_allowed and \
+                         self.program_remote_control_active and \
+                         self.operation.lower() not in ['delayedstart','run', 'finished', 'inactive']
+        self.started = self.power.lower() == "on" and \
+                       self.door.lower() == "closed" and \
+                       self.operation.lower() in ['delayedstart', 'run']
+        super()._notify_listeners()
+
+    def read_start_date(self) -> str:
+        if self.operation.lower() == 'delayedstart':
+            return self.__start_date
+        else:
+            return ""
+
+    def _program_fingerprint(self) -> str:
+        return self._program_selected
+
+    def __program_duration_sec(self):
+        # load store props
+        duration_map = {}
+        try:
+            with open(self.__file(), 'r') as file:
+                duration_map = json.load(file)
+                logging.info("config " + str(duration_map) + " loaded (" + self.__file() + ")")
+        except Exception as e:
+            logging.info("error reading " + self.__file() + " " + str(e))
+
+        # will update props, if duration is available
+        program_fingerprint = self._program_fingerprint()
+        if len(self.program_selected) > 0 and self._program_finish_in_relative_sec > 0:
+            duration_map[program_fingerprint] = self._program_finish_in_relative_sec
+            with open(self.__file(), 'w') as file:
+                json.dump(duration_map, file)
+
+        # get duration
+        duration_sec = duration_map.get(program_fingerprint, None)
+        if duration_sec is None:
+            logging.warning("no duration stored. Using default")
+            return 7222  # 2h
+        else:
+            return duration_sec
+
+    @property
+    def program_duration_minutes(self) -> int:
+        return int(self.__program_duration_sec() / 60)
+
+    def __compute_remaining_secs_to_finish(self, start_date: str, duration_sec: int) -> int:
+        remaining_secs_to_finish = int((datetime.fromisoformat(start_date) - datetime.now()).total_seconds()) + duration_sec
+        if remaining_secs_to_finish < 0:
+            logging.info("remaining_secs_to_finish is < 0. set it with 0")
+            remaining_secs_to_finish = 0
+        if remaining_secs_to_finish > 0 and self.__program_finish_in_relative_stepsize_sec > 0:
+            remaining_secs_to_finish = int(remaining_secs_to_finish / self.__program_finish_in_relative_stepsize_sec) * self.__program_finish_in_relative_stepsize_sec
+        return remaining_secs_to_finish
+
+    def write_start_date(self, start_date: str):
+        logging.info("starting device at " + start_date)
+
+        # ensure that current settings and selected program is loaded
+        self._reload_status_and_settings()
+        self._reload_selected_program()
+
+        # when startable
+        if self.startable:
+            program_duration_sec = self.__program_duration_sec()
+            data = {
+                "data": {
+                    "key": self._program_selected,
+                    "options": [{
+                        "key": "BSH.Common.Option.FinishInRelative",
+                        "value": self.__compute_remaining_secs_to_finish(start_date, program_duration_sec),
+                        "unit": "seconds"
+                    }]
+                }
+            }
+            try:
+                self._perform_put("/programs/active", json.dumps(data, indent=2), max_trials=3)
+                logging.info(self.name + " program " + self.program_selected + " starts at " + start_date + " (duration " + str(round(program_duration_sec/(60*60), 1)) + " h)")
+                self.__start_date = start_date
+            except Exception as e:
+                logging.warning("error occurred by starting " + self.name + " with program " + self.program_selected + " at " + start_date + " (duration: " + str(round(program_duration_sec/(60*60), 1)) + " h) " + str(e))
+        else:
+            logging.warning(self.name + " not startable. Ignoring start command.")
+
+
+class Washer(FinishInAppliance):
+    DeviceType = 'washer'
+
+    def __init__(self, device_uri: str, auth: Auth, name: str, device_type: str, haid: str, brand: str, vib: str, enumber: str):
+        super().__init__(device_uri, auth, name, device_type, haid, brand, vib, enumber)
+        self.idos1_baselevel = 0
+        self.idos1_active = False
+        self.idos2_baselevel = 0
+        self.idos2_active = False
+        self.water_forecast = 0
+        self.load_recommendation = 0
+        self.rinse_hold = False
+        self.__spin_speed = ""
+        self.__temperature = ""
+        self.energy_forecast = 0
+        self.intensive_plus = False
+        self.prewash = False
+        self.rinse_plus1 = False
+        self.speed_perfect = False
+
+    @property
+    def spin_speed(self) -> str:
+        if len(self.__spin_speed) > 0:
+            return self.__spin_speed[self.__spin_speed.rindex('.') + 1:]
+        else:
+            return ""
+
+    @property
+    def temperature(self) -> str:
+        if len(self.__temperature) > 0:
+            return self.__temperature[self.__temperature.rindex('.') + 1:]
+        else:
+            return ""
+
+    def _program_fingerprint(self) -> str:
+        return self._program_selected + "#" + \
+               str(self.speed_perfect) + "#" + \
+               str(self.intensive_plus) + "#" + \
+               str(self.prewash) + "#" + \
+               str(self.rinse_plus1)
+
+    def _on_value_changed(self, key: str, change: Dict[str, Any], source: str) -> bool:
+        if key == 'LaundryCare.Washer.Setting.IDos1BaseLevel':
+            self.idos1_baselevel = change.get('value', 0)
+            logging.info(self.name + " field 'idos1 baselevel': " + str(self.idos1_baselevel) + " (" + source + ")")
+        elif key == 'LaundryCare.Washer.Setting.IDos2BaseLevel':
+            self.idos2_baselevel = change.get('value', 0)
+            logging.info(self.name + " field 'idos2 baselevel': " + str(self.idos2_baselevel) + " (" + source + ")")
+        elif key == 'BSH.Common.Option.WaterForecast':
+            self.water_forecast = change.get('value', 0)
+            logging.info(self.name + " field 'water forecast': " + str(self.water_forecast) + " (" + source + ")")
+        elif key == 'LaundryCare.Common.Option.LoadRecommendation':
+            self.load_recommendation = change.get('value', 0)
+            logging.info(self.name + " field 'load recommendation': " + str(self.load_recommendation) + " (" + source + ")")
+        elif key == 'LaundryCare.Washer.Option.IDos1.Active':
+            self.idos1_active = change.get('value', False)
+            logging.info(self.name + " field 'idos1 active': " + str(self.idos1_active) + " (" + source + ")")
+        elif key == 'LaundryCare.Washer.Option.IDos2.Active':
+            self.idos2_active = change.get('value', False)
+            logging.info(self.name + " field 'idos2 active': " + str(self.idos2_active) + " (" + source + ")")
+        elif key == 'LaundryCare.Washer.Option.RinseHold':
+            self.rinse_hold = change.get('value', False)
+            logging.info(self.name + " field 'rinse hold': " + str(self.rinse_hold) + " (" + source + ")")
+        elif key == 'LaundryCare.Washer.Option.SpinSpeed':
+            self.__spin_speed = change.get('value', '')
+            logging.info(self.name + " field 'spin speed': " + str(self.__spin_speed) + " (" + source + ")")
+        elif key == 'LaundryCare.Washer.Option.Temperature':
+            self.__temperature = change.get('value', '')
+            logging.info(self.name + " field 'temperature': " + str(self.__temperature) + " (" + source + ")")
+        elif key == 'BSH.Common.Option.EnergyForecast':
+            self.energy_forecast = change.get('value', 0)
+            logging.info(self.name + " field 'energy forecast': " + str(self.energy_forecast) + " (" + source + ")")
+        elif key == 'LaundryCare.Washer.Option.IntensivePlus':
+            self.intensive_plus = change.get('value', False)
+            logging.info(self.name + " field 'intensive plus': " + str(self.intensive_plus) + " (" + source + ")")
+        elif key == 'LaundryCare.Washer.Option.Prewash':
+            self.prewash = change.get('value', False)
+            logging.info(self.name + " field 'prewash': " + str(self.prewash) + " (" + source + ")")
+        elif key == 'LaundryCare.Washer.Option.RinsePlus1':
+            self.rinse_plus1 = change.get('value', False)
+            logging.info(self.name + " field 'rinse plus 1': " + str(self.rinse_plus1) + " (" + source + ")")
+        elif key == 'LaundryCare.Washer.Option.SpeedPerfect':
+            self.speed_perfect = change.get('value', False)
+            logging.info(self.name + " field 'speed perfect': " + str(self.speed_perfect) + " (" + source + ")")
+        else:
+            # unhandled
+            return super()._on_value_changed(key, change, source)
+        return True
+
+
+
+class Dryer(FinishInAppliance):
+
     DeviceType = 'dryer'
 
     def __init__(self, device_uri: str, auth: Auth, name: str, device_type: str, haid: str, brand: str, vib: str, enumber: str):
-        self.__program_finish_in_relative_sec = 0
-        self.__program_finish_in_relative_max_sec = 86000
-        self.__program_finish_in_relative_stepsize_sec = 60
+        super().__init__(device_uri, auth, name, device_type, haid, brand, vib, enumber)
         self.program_gentle = False
         self.__program_drying_target = ""
         self.__program_drying_target_adjustment = ""
         self.__program_wrinkle_guard = ""
-        self.__start_date = ""
         super().__init__(device_uri, auth, name, device_type, haid, brand, vib, enumber)
 
     @property
@@ -398,170 +615,27 @@ class Dryer(Appliance):
         else:
             return ""
 
+    def _program_fingerprint(self) -> str:
+        return self._program_selected + "#" + \
+               str(self.program_gentle) + "#" + \
+               str(self.__program_drying_target) + "#" + \
+               str(self.__program_drying_target_adjustment) + "#" + \
+               str(self.__program_wrinkle_guard)
+
     def _on_value_changed(self, key: str, change: Dict[str, Any], source: str) -> bool:
-        if key == 'BSH.Common.Option.FinishInRelative':  # supported by dryer & washer only
-            if 'value' in change.keys():
-                self.__program_finish_in_relative_sec = int(change['value'])
-                logging.info(self.name + " field 'finish in relative': " + str(self.__program_finish_in_relative_sec) + " (" + source + ")")
-            if 'constraints' in change.keys():
-                constraints = change['constraints']
-                if 'max' in constraints.keys():
-                    self.__program_finish_in_relative_max_sec = constraints['max']
-                    logging.info(self.name + " field 'program_finish_in_relative_max_sec: " + str(self.__program_finish_in_relative_max_sec) + " (" + source + ")")
-                if 'stepsize' in constraints.keys():
-                    self.__program_finish_in_relative_stepsize_sec = constraints['stepsize']
-                    logging.info(self.name + " field 'program_finish_in_relative_stepsize_sec: " + str(self.__program_finish_in_relative_stepsize_sec) + " (" + source + ")")
-        elif key == 'LaundryCare.Dryer.Option.DryingTarget':
+        if key == 'LaundryCare.Dryer.Option.DryingTarget':
             self.__program_drying_target = change.get('value', "")
+            logging.info(self.name + " field 'program drying target': " + str(self.__program_drying_target) + " (" + source + ")")
         elif key == 'LaundryCare.Dryer.Option.DryingTargetAdjustment':
             self.__program_drying_target_adjustment = change.get('value', "")
+            logging.info(self.name + " field 'program_drying target adjustment': " + str(self.__program_drying_target_adjustment) + " (" + source + ")")
         elif key == 'LaundryCare.Dryer.Option.Gentle':
             self.program_gentle = change.get('value', False)
+            logging.info(self.name + " field 'program gentle': " + str(self.program_gentle) + " (" + source + ")")
         elif key == 'LaundryCare.Dryer.Option.WrinkleGuard':
             self.__program_wrinkle_guard = change.get('value', "")
+            logging.info(self.name + " field 'program wrinkle guard': " + str(self.__program_wrinkle_guard) + " (" + source + ")")
         else:
             # unhandled
             return super()._on_value_changed(key, change, source)
         return True
-
-    def _notify_listeners(self):
-        self.startable = self.door.lower() == "closed" and \
-                         self.power.lower() == "on" and \
-                         self.remote_start_allowed and \
-                         self.program_remote_control_active and \
-                         self.operation.lower() not in ['delayedstart','run', 'finished', 'inactive']
-        self.started = self.power.lower() == "on" and \
-                       self.door.lower() == "closed" and \
-                       self.operation.lower() in ['delayedstart', 'run']
-        super()._notify_listeners()
-
-    def read_start_date(self) -> str:
-        if self.operation.lower() == 'delayedstart':
-            return self.__start_date
-        else:
-            return ""
-
-    def write_start_date(self, start_date: str):
-        self._reload_selected_program()  # refresh to ensure that current program is read
-        if len(self._program_selected) == 0:
-            logging.warning("ignoring start command. No program selected")
-        elif self.startable:
-            duration_sec = self.__program_finish_in_relative_sec
-            remaining_secs_to_finish = int((datetime.fromisoformat(start_date) - datetime.now()).total_seconds()) + duration_sec
-            logging.info("remaining_secs_to_finish " + str(remaining_secs_to_finish) + " (" + print_duration(remaining_secs_to_finish) + ") computed based on start date " + start_date + " and duration " + print_duration(duration_sec))
-            if remaining_secs_to_finish < 0:
-                logging.info("remaining_secs_to_finish is < 0. set it with 0")
-                remaining_secs_to_finish = 0
-            if remaining_secs_to_finish > 0 and self.__program_finish_in_relative_stepsize_sec > 0:
-                remaining_secs_to_finish = int(remaining_secs_to_finish / self.__program_finish_in_relative_stepsize_sec) * self.__program_finish_in_relative_stepsize_sec
-                logging.info("remaining_secs_to_finish " + str(remaining_secs_to_finish) + " (" + print_duration(remaining_secs_to_finish) + ") computed based on stepsize of " + str(self.__program_finish_in_relative_stepsize_sec) + " sec")
-            data = {
-                "data": {
-                    "key": self._program_selected,
-                    "options": [{
-                        "key": "BSH.Common.Option.FinishInRelative",
-                        "value": remaining_secs_to_finish,
-                        "unit": "seconds"
-                    }]
-                }
-            }
-            try:
-                self._perform_put("/programs/active", json.dumps(data, indent=2), max_trials=3)
-                logging.info(self.name + " program " + self.program_selected + " starts at " + start_date)
-                self.__start_date = start_date
-            except Exception as e:
-                logging.warning("error occurred by starting " + self.name + " " + str(e))
-        else:
-            logging.warning("ignoring start command. " + self.name + " is in state " + self._operation + " power: " + self.power)
-        self._notify_listeners()
-
-class FinishInAppliance(Appliance):
-
-    def __init__(self, device_uri: str, auth: Auth, name: str, device_type: str, haid: str, brand: str, vib: str, enumber: str):
-        self.__program_finish_in_relative_sec = 0
-        self.__program_finish_in_relative_max_sec = 86000
-        self.__program_finish_in_relative_stepsize_sec = 60
-        self.__start_date = ""
-        super().__init__(device_uri, auth, name, device_type, haid, brand, vib, enumber)
-
-    def _on_value_changed(self, key: str, change: Dict[str, Any], source: str) -> bool:
-        if key == 'BSH.Common.Option.FinishInRelative':  # supported by dryer & washer only
-            if 'value' in change.keys():
-                self.__program_finish_in_relative_sec = int(change['value'])
-                logging.info(self.name + " field 'finish in relative': " + str(self.__program_finish_in_relative_sec) + " (" + source + ")")
-            if 'constraints' in change.keys():
-                constraints = change['constraints']
-                if 'max' in constraints.keys():
-                    self.__program_finish_in_relative_max_sec = constraints['max']
-                    logging.info(self.name + " field 'program_finish_in_relative_max_sec: " + str(self.__program_finish_in_relative_max_sec) + " (" + source + ")")
-                if 'stepsize' in constraints.keys():
-                    self.__program_finish_in_relative_stepsize_sec = constraints['stepsize']
-                    logging.info(self.name + " field 'program_finish_in_relative_stepsize_sec: " + str(self.__program_finish_in_relative_stepsize_sec) + " (" + source + ")")
-        else:
-            # unhandled
-            return super()._on_value_changed(key, change, source)
-        return True
-
-    def _notify_listeners(self):
-        self.startable = self.door.lower() == "closed" and \
-                         self.power.lower() == "on" and \
-                         self.remote_start_allowed and \
-                         self.program_remote_control_active and \
-                         self.operation.lower() not in ['delayedstart','run', 'finished', 'inactive']
-        super()._notify_listeners()
-
-    def read_start_date(self) -> str:
-        if self.operation.lower() == 'delayedstart':
-            return self.__start_date
-        else:
-            return ""
-
-    def write_start_date(self, start_date: str):
-        self._reload_selected_program()  # refresh to ensure that current program is read
-        if len(self._program_selected) == 0:
-            logging.warning("ignoring start command. No program selected")
-        elif self.startable:
-            duration_sec = self.__program_finish_in_relative_sec
-            remaining_secs_to_finish = int((datetime.fromisoformat(start_date) - datetime.now()).total_seconds()) + duration_sec
-            logging.info("remaining_secs_to_finish " + str(remaining_secs_to_finish) + " (" + print_duration(remaining_secs_to_finish) + ") computed based on start date " + start_date + " and duration " + print_duration(duration_sec))
-            if remaining_secs_to_finish < 0:
-                logging.info("remaining_secs_to_finish is < 0. set it with 0")
-                remaining_secs_to_finish = 0
-            if remaining_secs_to_finish > 0 and self.__program_finish_in_relative_stepsize_sec > 0:
-                remaining_secs_to_finish = int(remaining_secs_to_finish / self.__program_finish_in_relative_stepsize_sec) * self.__program_finish_in_relative_stepsize_sec
-                logging.info("remaining_secs_to_finish " + str(remaining_secs_to_finish) + " (" + print_duration(remaining_secs_to_finish) + ") computed based on stepsize of " + str(self.__program_finish_in_relative_stepsize_sec) + " sec")
-            data = {
-                "data": {
-                    "key": self._program_selected,
-                    "options": [{
-                        "key": "BSH.Common.Option.FinishInRelative",
-                        "value": remaining_secs_to_finish,
-                        "unit": "seconds"
-                    }]
-                }
-            }
-            try:
-                self._perform_put("/programs/active", json.dumps(data, indent=2), max_trials=3)
-                logging.info(self.name + " program " + self.program_selected + " starts at " + start_date)
-                self.__start_date = start_date
-            except Exception as e:
-                logging.warning("error occurred by starting " + self.name + " " + str(e))
-        else:
-            logging.warning("ignoring start command. " + self.name + " is in state " + self._operation + " power: " + self.power)
-
-
-class Washer(FinishInAppliance):
-    DeviceType = 'washer'
-
-    def __init__(self, device_uri: str, auth: Auth, name: str, device_type: str, haid: str, brand: str, vib: str, enumber: str):
-        super().__init__(device_uri, auth, name, device_type, haid, brand, vib, enumber)
-
-    def _on_value_changed(self, key: str, change: Dict[str, Any], source: str) -> bool:
-        if key == 'BSH.Common.Option.TTTT':
-            print("stop")
-        else:
-            # unhandled
-            return super()._on_value_changed(key, change, source)
-        return True
-
-

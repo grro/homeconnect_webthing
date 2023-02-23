@@ -444,15 +444,182 @@ class WasherThing(ApplianceThing):
                          'readOnly': False,
                      }))
 
+        self.idos1_active = Value(washer.idos1_active)
+        self.add_property(
+            Property(self,
+                     'idos1_active',
+                     self.idos1_active,
+                     metadata={
+                         'title': 'i-Dos 1 active',
+                         "type": "boolean",
+                         'description': 'True if i-Dos 1 is active',
+                         'readOnly': True,
+                     }))
+
+        self.idos2_active = Value(washer.idos2_active)
+        self.add_property(
+            Property(self,
+                     'idos2_active',
+                     self.idos2_active,
+                     metadata={
+                         'title': 'i-Dos 2 active',
+                         "type": "boolean",
+                         'description': 'True if i-Dos 2 is active',
+                         'readOnly': True,
+                     }))
+
+        self.idos1_baselevel = Value(washer.idos1_baselevel)
+        self.add_property(
+            Property(self,
+                     'idos1_baselevel',
+                     self.idos1_baselevel,
+                     metadata={
+                         'title': 'i-Dos 1 base level',
+                         "type": "number",
+                         'description': 'The i-Dos 1 base level',
+                         'readOnly': True,
+                     }))
+
+        self.idos2_baselevel = Value(washer.idos2_baselevel)
+        self.add_property(
+            Property(self,
+                     'idos2_baselevel',
+                     self.idos2_baselevel,
+                     metadata={
+                         'title': 'i-Dos 2 base level',
+                         "type": "number",
+                         'description': 'The i-Dos 2 base level',
+                         'readOnly': True,
+                     }))
+
+        self.temperature = Value(washer.temperature)
+        self.add_property(
+            Property(self,
+                     'temperature',
+                     self.idos1_baselevel,
+                     metadata={
+                         'title': 'temperature',
+                         "type": "number",
+                         'description': 'The temperature',
+                         'readOnly': True,
+                     }))
+
+        self.spin_speed = Value(washer.spin_speed)
+        self.add_property(
+            Property(self,
+                     'spin_speed',
+                     self.spin_speed,
+                     metadata={
+                         'title': 'spin speed',
+                         "type": "string",
+                         'description': 'The spin speed',
+                         'readOnly': True,
+                     }))
+
+        self.load_recommendation = Value(washer.load_recommendation)
+        self.add_property(
+            Property(self,
+                     'load_recommendation',
+                     self.load_recommendation,
+                     metadata={
+                         'title': 'Load Recommendation',
+                         "type": "number",
+                         'description': 'The load recommendation',
+                         'readOnly': True,
+                     }))
+
+        self.energy_forecast = Value(washer.energy_forecast)
+        self.add_property(
+            Property(self,
+                     'energy_forecast',
+                     self.energy_forecast,
+                     metadata={
+                         'title': 'Energy Forecast',
+                         "type": "number",
+                         'description': 'The energy forecast',
+                         'readOnly': True,
+                     }))
+
+        self.intensive_plus = Value(washer.intensive_plus)
+        self.add_property(
+            Property(self,
+                     'intensive_plus',
+                     self.intensive_plus,
+                     metadata={
+                         'title': 'Intensive Plus',
+                         "type": "boolean",
+                         'description': 'True, if intensive plus',
+                         'readOnly': True,
+                     }))
+
+        self.prewash = Value(washer.prewash)
+        self.add_property(
+            Property(self,
+                     'prewash',
+                     self.prewash,
+                     metadata={
+                         'title': 'Pre-wash',
+                         "type": "boolean",
+                         'description': 'True, if pre-wash',
+                         'readOnly': True,
+                     }))
+
+        self.rinse_plus1 = Value(washer.rinse_plus1)
+        self.add_property(
+            Property(self,
+                     'rinse_plus1',
+                     self.rinse_plus1,
+                     metadata={
+                         'title': 'Rinse Plus 1',
+                         "type": "boolean",
+                         'description': 'True, if rinse plus',
+                         'readOnly': True,
+                     }))
+
+        self.speed_perfect = Value(washer.speed_perfect)
+        self.add_property(
+            Property(self,
+                     'speed_perfect',
+                     self.speed_perfect,
+                     metadata={
+                         'title': 'Speed Perfect',
+                         "type": "boolean",
+                         'description': 'True, if speed perfect',
+                         'readOnly': True,
+                     }))
+
+        self.program_duration = Value(washer.program_duration_minutes)
+        self.add_property(
+            Property(self,
+                     'program_duration',
+                     self.program_duration,
+                     metadata={
+                         'title': 'Program Duration',
+                         "type": "number",
+                         'description': 'The program duration in minutes',
+                         'readOnly': True,
+                     }))
+
+
     def _on_value_changed(self, washer: Washer):
         super()._on_value_changed(washer)
         self.start_date.notify_of_external_update(washer.read_start_date())
-
-
+        self.spin_speed.notify_of_external_update(washer.spin_speed)
+        self.idos1_baselevel.notify_of_external_update(washer.idos1_baselevel)
+        self.idos1_active.notify_of_external_update(washer.idos2_active)
+        self.idos2_active.notify_of_external_update(washer.idos2_active)
+        self.load_recommendation.notify_of_external_update(washer.load_recommendation)
+        self.temperature.notify_of_external_update(washer.temperature)
+        self.energy_forecast.notify_of_external_update(washer.energy_forecast)
+        self.intensive_plus.notify_of_external_update(washer.intensive_plus)
+        self.prewash.notify_of_external_update(washer.prewash)
+        self.rinse_plus1.notify_of_external_update(washer.rinse_plus1)
+        self.speed_perfect.notify_of_external_update(washer.speed_perfect)
+        self.program_duration.notify_of_external_update(washer.program_duration_minutes)
 
 def run_server( description: str, port: int, refresh_token: str, client_secret: str):
     homeappliances = []
-    for appliance in HomeConnect(refresh_token, client_secret).appliances():
+    for appliance in HomeConnect(refresh_token, client_secret).appliances:
         if appliance.device_type.lower() == Dishwasher.DeviceType:
             homeappliances.append(DishwasherThing(description, appliance).activate())
         elif appliance.device_type.lower() == Washer.DeviceType:

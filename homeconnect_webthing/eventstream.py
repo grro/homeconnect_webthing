@@ -121,7 +121,6 @@ class EventStream:
                         if event.event.upper() == "NOTIFY":
                             self.notify_listener.on_notify_event(event)
                         elif event.event.upper() == "KEEP-ALIVE":
-                            logging.debug("keep alive event (remaining life time " + print_duration(remaining_secs_next_reconnect) + ")")
                             self.notify_listener.on_keep_alive_event(event)
                         elif event.event.upper() == "STATUS":
                             self.notify_listener.on_status_event(event)
