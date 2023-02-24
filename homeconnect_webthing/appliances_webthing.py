@@ -600,7 +600,7 @@ class WasherThing(ApplianceThing):
                          'readOnly': True,
                      }))
 
-        self.program_duration = Value(washer.program_duration_minutes)
+        self.program_duration = Value(washer.program_duration_hours)
         self.add_property(
             Property(self,
                      'program_duration',
@@ -608,7 +608,7 @@ class WasherThing(ApplianceThing):
                      metadata={
                          'title': 'Program Duration',
                          "type": "number",
-                         'description': 'The program duration in minutes',
+                         'description': 'The program duration in hours',
                          'readOnly': True,
                      }))
 
@@ -629,7 +629,7 @@ class WasherThing(ApplianceThing):
         self.prewash.notify_of_external_update(washer.prewash)
         self.rinse_plus1.notify_of_external_update(washer.rinse_plus1)
         self.speed_perfect.notify_of_external_update(washer.speed_perfect)
-        self.program_duration.notify_of_external_update(washer.program_duration_minutes)
+        self.program_duration.notify_of_external_update(washer.program_duration_hours)
 
 def run_server( description: str, port: int, refresh_token: str, client_secret: str):
     homeappliances = []

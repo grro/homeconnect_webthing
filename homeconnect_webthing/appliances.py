@@ -457,8 +457,8 @@ class FinishInAppliance(Appliance):
             return duration_sec
 
     @property
-    def program_duration_minutes(self) -> int:
-        return int(self.__program_duration_sec() / 60)
+    def program_duration_hours(self) -> float:
+        return round(self.__program_duration_sec() / (60*60), 1)
 
     def __compute_remaining_secs_to_finish(self, start_date: str, duration_sec: int) -> int:
         remaining_secs_to_finish = int((datetime.fromisoformat(start_date) - datetime.now()).total_seconds()) + duration_sec
@@ -597,7 +597,6 @@ class Dryer(FinishInAppliance):
     DeviceType = 'dryer'
 
     def __init__(self, device_uri: str, auth: Auth, name: str, device_type: str, haid: str, brand: str, vib: str, enumber: str):
-        super().__init__(device_uri, auth, name, device_type, haid, brand, vib, enumber)
         self.program_gentle = False
         self.__program_drying_target = ""
         self.__program_drying_target_adjustment = ""
