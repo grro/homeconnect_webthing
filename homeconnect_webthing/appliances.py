@@ -378,7 +378,6 @@ class FinishInAppliance(Appliance):
         self._program_finish_in_relative_sec = 0
         self.__program_finish_in_relative_max_sec = 86000
         self.__program_finish_in_relative_stepsize_sec = 60
-        self.__start_date = ""
         super().__init__(device_uri, auth, name, device_type, haid, brand, vib, enumber)
         self.__durations = self.__load_durations()
 
@@ -434,8 +433,9 @@ class FinishInAppliance(Appliance):
         super()._notify_listeners()
 
     def read_start_date(self) -> str:
-        if self.operation.lower() == 'delayedstart':
-            return self.__start_date
+        if self.operation.lower() == 'delayedstart' and self._program_finish_in_relative_sec > 0:
+            start_date = datetime.now() - timedelta(seconds=self._program_finish_in_relative_sec) + timedelta(seconds=self.__program_duration_sec())
+            return start_date.strftime("%Y-%m-%d %H:%M")
         else:
             return ""
 
@@ -496,7 +496,6 @@ class FinishInAppliance(Appliance):
             try:
                 self._perform_put("/programs/active", json.dumps(data, indent=2), max_trials=3)
                 logging.info(self.name + " program " + self.program_selected + " starts at " + start_date + " (duration " + str(round(program_duration_sec/(60*60), 1)) + " h)")
-                self.__start_date = start_date
             except Exception as e:
                 logging.warning("error occurred by starting " + self.name + " with program " + self.program_selected + " at " + start_date + " (duration: " + str(round(program_duration_sec/(60*60), 1)) + " h) " + str(e))
         else:
