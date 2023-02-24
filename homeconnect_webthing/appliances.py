@@ -503,7 +503,6 @@ class Washer(FinishInAppliance):
     DeviceType = 'washer'
 
     def __init__(self, device_uri: str, auth: Auth, name: str, device_type: str, haid: str, brand: str, vib: str, enumber: str):
-        super().__init__(device_uri, auth, name, device_type, haid, brand, vib, enumber)
         self.idos1_baselevel = 0
         self.idos1_active = False
         self.idos2_baselevel = 0
@@ -518,6 +517,7 @@ class Washer(FinishInAppliance):
         self.prewash = False
         self.rinse_plus1 = False
         self.speed_perfect = False
+        super().__init__(device_uri, auth, name, device_type, haid, brand, vib, enumber)
 
     @property
     def spin_speed(self) -> str:
@@ -563,8 +563,10 @@ class Washer(FinishInAppliance):
             self.rinse_hold = change.get('value', False)
             logging.info(self.name + " field 'rinse hold': " + str(self.rinse_hold) + " (" + source + ")")
         elif key == 'LaundryCare.Washer.Option.SpinSpeed':
-            self.__spin_speed = change.get('value', '')
-            logging.info(self.name + " field 'spin speed': " + str(self.__spin_speed) + " (" + source + ")")
+            value = change.get('value', None)
+            if value is not None:
+                self.__spin_speed = value
+                logging.info(self.name + " field 'spin speed': " + str(self.__spin_speed) + " (" + source + ")")
         elif key == 'LaundryCare.Washer.Option.Temperature':
             self.__temperature = change.get('value', '')
             logging.info(self.name + " field 'temperature': " + str(self.__temperature) + " (" + source + ")")
