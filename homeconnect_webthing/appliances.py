@@ -442,6 +442,10 @@ class FinishInAppliance(Appliance):
     def _program_fingerprint(self) -> str:
         return self._program_selected
 
+    @property
+    def program_duration_hours(self) -> float:
+        return round(self.__program_duration_sec() / (60*60), 1)
+
     def __program_duration_sec(self):
         # will update props, if duration is available
         program_fingerprint = self._program_fingerprint()
@@ -455,14 +459,10 @@ class FinishInAppliance(Appliance):
         # get duration
         duration_sec = self.__durations.get(program_fingerprint, None)
         if duration_sec is None:
-            logging.warning("no duration stored. Using default")
+            logging.warning("no duration stored. Using default (key: " + program_fingerprint + " available values: " + str(self.__durations) + ")")
             return 7222  # 2h
         else:
             return duration_sec
-
-    @property
-    def program_duration_hours(self) -> float:
-        return round(self.__program_duration_sec() / (60*60), 1)
 
     def __compute_remaining_secs_to_finish(self, start_date: str, duration_sec: int) -> int:
         remaining_secs_to_finish = int((datetime.fromisoformat(start_date) - datetime.now()).total_seconds()) + duration_sec
