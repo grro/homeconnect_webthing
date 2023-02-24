@@ -375,11 +375,22 @@ class Dishwasher(Appliance):
 class FinishInAppliance(Appliance):
 
     def __init__(self, device_uri: str, auth: Auth, name: str, device_type: str, haid: str, brand: str, vib: str, enumber: str):
-        super().__init__(device_uri, auth, name, device_type, haid, brand, vib, enumber)
         self._program_finish_in_relative_sec = 0
         self.__program_finish_in_relative_max_sec = 86000
         self.__program_finish_in_relative_stepsize_sec = 60
         self.__start_date = ""
+        super().__init__(device_uri, auth, name, device_type, haid, brand, vib, enumber)
+        self.__durations = self.__load_durations()
+
+    def __load_durations(self):
+        durations = {}
+        try:
+            with open(self.__file(), 'r') as file:
+                durations = json.load(file)
+                logging.info("config " + str(durations) + " loaded (" + self.__file() + ")")
+        except Exception as e:
+            logging.info("error reading " + self.__file() + " " + str(e))
+        return durations
 
     def __file(self) -> str:
         dir = site_data_dir("HomeConnect", appauthor=False)
@@ -416,7 +427,7 @@ class FinishInAppliance(Appliance):
                          self.power.lower() == "on" and \
                          self.remote_start_allowed and \
                          self.program_remote_control_active and \
-                         self.operation.lower() not in ['delayedstart','run', 'finished', 'inactive']
+                         self.operation.lower() not in ['delayedstart', 'run', 'finished', 'inactive']
         self.started = self.power.lower() == "on" and \
                        self.door.lower() == "closed" and \
                        self.operation.lower() in ['delayedstart', 'run']
@@ -432,24 +443,17 @@ class FinishInAppliance(Appliance):
         return self._program_selected
 
     def __program_duration_sec(self):
-        # load store props
-        duration_map = {}
-        try:
-            with open(self.__file(), 'r') as file:
-                duration_map = json.load(file)
-                logging.info("config " + str(duration_map) + " loaded (" + self.__file() + ")")
-        except Exception as e:
-            logging.info("error reading " + self.__file() + " " + str(e))
-
         # will update props, if duration is available
         program_fingerprint = self._program_fingerprint()
-        if len(self.program_selected) > 0 and self._program_finish_in_relative_sec > 0:
-            duration_map[program_fingerprint] = self._program_finish_in_relative_sec
-            with open(self.__file(), 'w') as file:
-                json.dump(duration_map, file)
+        if len(self.program_selected) > 0 and self._program_finish_in_relative_sec > 0 and self.operation.lower() not in ['delayedstart', 'run', 'finished', 'inactive']:
+            if self.__durations.get(program_fingerprint, "?") != self._program_finish_in_relative_sec:   # duration changed?
+                self.__durations[program_fingerprint] = self._program_finish_in_relative_sec
+                logging.info("duration update for " + program_fingerprint + " with " + str(self._program_finish_in_relative_sec))
+                with open(self.__file(), 'w') as file:
+                    json.dump(self.__durations, file)
 
         # get duration
-        duration_sec = duration_map.get(program_fingerprint, None)
+        duration_sec = self.__durations.get(program_fingerprint, None)
         if duration_sec is None:
             logging.warning("no duration stored. Using default")
             return 7222  # 2h
