@@ -540,6 +540,18 @@ class WasherThing(ApplianceThing):
                          'readOnly': True,
                      }))
 
+        self.water_forecast = Value(washer.water_forecast)
+        self.add_property(
+            Property(self,
+                     'water_forecast',
+                     self.water_forecast,
+                     metadata={
+                         'title': 'Water Forecast',
+                         "type": "number",
+                         'description': 'The water forecast',
+                         'readOnly': True,
+                     }))
+
         self.intensive_plus = Value(washer.intensive_plus)
         self.add_property(
             Property(self,
@@ -606,11 +618,12 @@ class WasherThing(ApplianceThing):
         self.start_date.notify_of_external_update(washer.read_start_date())
         self.spin_speed.notify_of_external_update(washer.spin_speed)
         self.idos1_baselevel.notify_of_external_update(washer.idos1_baselevel)
-        self.idos1_active.notify_of_external_update(washer.idos2_active)
+        self.idos1_active.notify_of_external_update(washer.idos1_active)
         self.idos2_active.notify_of_external_update(washer.idos2_active)
         self.load_recommendation.notify_of_external_update(washer.load_recommendation)
         self.temperature.notify_of_external_update(washer.temperature)
         self.energy_forecast.notify_of_external_update(washer.energy_forecast)
+        self.water_forecast.notify_of_external_update(washer.water_forecast)
         self.intensive_plus.notify_of_external_update(washer.intensive_plus)
         self.prewash.notify_of_external_update(washer.prewash)
         self.rinse_plus1.notify_of_external_update(washer.rinse_plus1)

@@ -44,6 +44,7 @@ class Appliance(EventListener):
         self.__program_active = ""
         self.child_lock = False
         self._reload_status_and_settings()
+        self._reload_selected_program(ignore_error=True)
 
     def id(self) -> str:
         return self.haid
@@ -183,23 +184,30 @@ class Appliance(EventListener):
             return False
         return True
 
-    def _reload_selected_program(self):
+    def _reload_selected_program(self, ignore_error: bool = False):
         # query the selected program
-        selected_data = self._perform_get('/programs/selected').get('data', {})
-        self._program_selected = selected_data.get('key', "")
-        logging.info(self.name + " program selected: " + str(self._program_selected) + " (reload program)")
-        selected_options = selected_data.get('options', "")
-        self._on_values_changed(selected_options, "reload program")
+        try:
+            selected_data = self._perform_get('/programs/selected').get('data', {})
+            self._program_selected = selected_data.get('key', "")
+            logging.info(self.name + " program selected: " + str(self._program_selected) + " (reload program)")
+            selected_options = selected_data.get('options', "")
+            self._on_values_changed(selected_options, "reload program")
 
-        # query available options of the selected program
-        if len(self._program_selected) > 0:
-            try:
-                available_data = self._perform_get('/programs/available/' + self._program_selected).get('data', {})
-                available_options = available_data.get('options', "")
-                self._on_values_changed(available_options, "reload program")
-            except Exception as e:
-                logging.warning("error occurred fetching program options of " + self._program_selected + " " + str(e))
-        self._notify_listeners()
+            # query available options of the selected program
+            if len(self._program_selected) > 0:
+                try:
+                    available_data = self._perform_get('/programs/available/' + self._program_selected).get('data', {})
+                    available_options = available_data.get('options', "")
+                    self._on_values_changed(available_options, "reload program")
+                except Exception as e:
+                    logging.warning("error occurred fetching program options of " + self._program_selected + " " + str(e))
+            self._notify_listeners()
+        except Exception as e:
+            if ignore_error:
+                return
+            else:
+                raise e
+
 
     def _perform_get(self, path:str) -> Dict[str, Any]:
         uri = self._device_uri + path
