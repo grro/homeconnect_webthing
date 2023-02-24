@@ -476,7 +476,7 @@ class WasherThing(ApplianceThing):
                      metadata={
                          'title': 'i-Dos 1 base level',
                          "type": "number",
-                         'description': 'The i-Dos 1 base level',
+                         'description': 'The i-Dos 1 base level (ml)',
                          'readOnly': True,
                      }))
 
@@ -488,7 +488,7 @@ class WasherThing(ApplianceThing):
                      metadata={
                          'title': 'i-Dos 2 base level',
                          "type": "number",
-                         'description': 'The i-Dos 2 base level',
+                         'description': 'The i-Dos 2 base level (ml)',
                          'readOnly': True,
                      }))
 
@@ -618,6 +618,7 @@ class WasherThing(ApplianceThing):
         self.start_date.notify_of_external_update(washer.read_start_date())
         self.spin_speed.notify_of_external_update(washer.spin_speed)
         self.idos1_baselevel.notify_of_external_update(washer.idos1_baselevel)
+        self.idos2_baselevel.notify_of_external_update(washer.idos2_baselevel)
         self.idos1_active.notify_of_external_update(washer.idos1_active)
         self.idos2_active.notify_of_external_update(washer.idos2_active)
         self.load_recommendation.notify_of_external_update(washer.load_recommendation)
