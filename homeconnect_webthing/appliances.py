@@ -434,7 +434,7 @@ class FinishInAppliance(Appliance):
 
     def read_start_date(self) -> str:
         if self.operation.lower() == 'delayedstart' and self._program_finish_in_relative_sec > 0:
-            start_date = datetime.now() - timedelta(seconds=self._program_finish_in_relative_sec) + timedelta(seconds=self.__program_duration_sec())
+            start_date = datetime.now() + timedelta(seconds=self._program_finish_in_relative_sec) - timedelta(seconds=self.__program_duration_sec())
             return start_date.strftime("%Y-%m-%d %H:%M")
         else:
             return ""
