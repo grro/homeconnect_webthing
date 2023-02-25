@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from os.path import exists, join
 from os import makedirs
 from appdirs import site_data_dir
+from redzoo.database.simple import SimpleDB
 from homeconnect_webthing.auth import Auth
 from homeconnect_webthing.eventstream import EventListener
 from homeconnect_webthing.utils import print_duration, is_success
@@ -409,25 +410,8 @@ class FinishInAppliance(Appliance):
         self._program_finish_in_relative_sec = 0
         self.__program_finish_in_relative_max_sec = 86000
         self.__program_finish_in_relative_stepsize_sec = 60
+        self._durations = SimpleDB(haid + '_durations')
         super().__init__(device_uri, auth, name, device_type, haid, brand, vib, enumber)
-        self.__durations = self.__load_durations()
-
-    def __load_durations(self):
-        durations = {}
-        try:
-            with open(self.__file(), 'r') as file:
-                durations = json.load(file)
-                logging.info("config " + str(durations) + " loaded (" + self.__file() + ")")
-        except Exception as e:
-            logging.info("error reading " + self.__file() + " " + str(e))
-        return durations
-
-    def __file(self) -> str:
-        dir = site_data_dir("HomeConnect", appauthor=False)
-        if not exists(dir):
-            makedirs(dir)
-        file = join(dir, self.haid + '_config.json')
-        return file
 
     def _on_value_changed(self, key: str, change: Dict[str, Any], source: str) -> bool:
         if key == 'BSH.Common.Status.OperationState':
@@ -475,16 +459,14 @@ class FinishInAppliance(Appliance):
         # will update props, if duration is available
         program_fingerprint = self._program_fingerprint()
         if len(self.program_selected) > 0 and self._program_finish_in_relative_sec > 0 and self.operation.lower() not in ['delayedstart', 'run', 'finished', 'inactive']:
-            if self.__durations.get(program_fingerprint, "?") != self._program_finish_in_relative_sec:   # duration changed?
-                self.__durations[program_fingerprint] = self._program_finish_in_relative_sec
+            if self._durations.get(program_fingerprint, "?") != self._program_finish_in_relative_sec:   # duration changed?
+                self._durations.put(program_fingerprint, self._program_finish_in_relative_sec)
                 logging.info("duration update for " + program_fingerprint + " with " + str(self._program_finish_in_relative_sec))
-                with open(self.__file(), 'w') as file:
-                    json.dump(self.__durations, file)
 
         # get duration
-        duration_sec = self.__durations.get(program_fingerprint, None)
+        duration_sec = self._durations.get(program_fingerprint, None)
         if duration_sec is None:
-            logging.warning("no duration stored. Using default (key: " + program_fingerprint + " available values: " + str(self.__durations) + ")")
+            logging.warning("no duration stored. Using default (key: " + program_fingerprint + " available values: " + ", ".join([key + ": " + str(self._durations.get(key)) for key in self._durations.keys()]) + ")")
             return 7222  # 2h
         else:
             return duration_sec
