@@ -96,7 +96,7 @@ class Appliance(EventListener):
             new_status = "DELAYED_STARTED"
 
         elif self.power.lower() == "on" and self.operation.lower() == 'run':
-            new_status = "STARTED"
+            new_status = "RUNNING"
             self.completed = False
 
         elif self.power.lower() == "on" and \
@@ -410,7 +410,7 @@ class FinishInAppliance(Appliance):
         self._program_finish_in_relative_sec = 0
         self.__program_finish_in_relative_max_sec = 86000
         self.__program_finish_in_relative_stepsize_sec = 60
-        self._durations = SimpleDB(haid + '_durations')
+        self._durations = SimpleDB(haid + '_durations', sync_period_sec=0)
         super().__init__(device_uri, auth, name, device_type, haid, brand, vib, enumber)
 
     def _on_value_changed(self, key: str, change: Dict[str, Any], source: str) -> bool:
@@ -459,7 +459,7 @@ class FinishInAppliance(Appliance):
         # will update props, if duration is available
         program_fingerprint = self._program_fingerprint()
         if len(self.program_selected) > 0 and self._program_finish_in_relative_sec > 0 and self.operation.lower() not in ['delayedstart', 'run', 'finished', 'inactive']:
-            if self._durations.get(program_fingerprint, "?") != self._program_finish_in_relative_sec:   # duration changed?
+            if self._durations.get(program_fingerprint, -1) != self._program_finish_in_relative_sec:   # duration changed?
                 self._durations.put(program_fingerprint, self._program_finish_in_relative_sec)
                 logging.info("duration update for " + program_fingerprint + " with " + str(self._program_finish_in_relative_sec))
 
