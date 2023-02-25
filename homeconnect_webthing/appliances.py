@@ -20,6 +20,14 @@ class OfflineException(Exception):
 
 class Appliance(EventListener):
 
+    ON = "On"
+    OFF = "Off"
+
+    INACTIVE = "INACTIVE"
+    REMOTE_STARTABLE = "REMOTE_STARTABLE"
+    DELAYED_STARTED = "DELAYED_STARTED"
+    RUNNING = "RUNNING"
+
     def __init__(self, device_uri: str, auth: Auth, name: str, device_type: str, haid: str, brand: str, vib: str, enumber: str):
         self._device_uri = device_uri
         self._auth = auth
@@ -43,9 +51,10 @@ class Appliance(EventListener):
         self._door = ""
         self._operation = ""
         self.completed = True
-        self.status = "INACTIVE"
         self.__program_active = ""
         self.child_lock = False
+        self.__db = SimpleDB(haid + '_db', sync_period_sec=0)
+        self.status = self.__db.get("state", self.INACTIVE)
         self._reload_status_and_settings()
         self._reload_selected_program(ignore_error=True)
 
@@ -57,7 +66,7 @@ class Appliance(EventListener):
         if len(self._power) > 0:
             return self._power[self._power.rindex('.')+1:]
         else:
-            return "Off"
+            return self.OFF
 
     @property
     def door(self):
@@ -92,31 +101,27 @@ class Appliance(EventListener):
         self._notify_listeners()
 
     def __update_state(self):
-        if self.power.lower() == "on" and self.operation.lower() == 'delayedstart':
-            new_status = "DELAYED_STARTED"
-
-        elif self.power.lower() == "on" and self.operation.lower() == 'run':
-            new_status = "RUNNING"
+        if self.power.lower() == self.ON.lower() and self.operation.lower() == 'delayedstart':
+            new_status = self.DELAYED_STARTED
+        elif self.power.lower() == self.ON.lower() and self.operation.lower() == 'run':
+            new_status = self.RUNNING
             self.completed = False
-
-        elif self.power.lower() == "on" and \
+        elif self.power.lower() == self.ON.lower() and \
              not self.completed and \
              self.door.lower() == "closed" and \
              self.remote_start_allowed and \
              self.operation.lower() not in ['delayedstart', 'run', 'finished', 'inactive']:
-            new_status = "REMOTE_STARTABLE"
-
-        elif self.power.lower() != "on":
-            new_status = "INACTIVE"
+            new_status = self.REMOTE_STARTABLE
+        elif self.power.lower() != self.ON.lower():
+            new_status = self.INACTIVE
             self.completed = True
-
         else:
-            new_status = "INACTIVE"
+            new_status = self.INACTIVE
 
         if self.status != new_status:
             logging.info("new status: " + new_status + " (previous: " + self.status + ")")
             self.status = new_status
-
+            self.__db.put("state", self.status)
 
     def _notify_listeners(self):
         self.__update_state()
