@@ -118,6 +118,18 @@ class ApplianceThing(Thing):
                          'readOnly': True,
                      }))
 
+        self.status = Value(appliance.status)
+        self.add_property(
+            Property(self,
+                     'status',
+                     self.status,
+                     metadata={
+                         'title': 'status',
+                         "type": "string",
+                         'description': 'The status',
+                         'readOnly': True,
+                     }))
+
         self.operation = Value(appliance.operation)
         self.add_property(
             Property(self,
@@ -215,6 +227,7 @@ class ApplianceThing(Thing):
         self.door.notify_of_external_update(self.appliance.door)
         self.operation.notify_of_external_update(self.appliance.operation)
         self.remote_start_allowed.notify_of_external_update(self.appliance.remote_start_allowed)
+        self.status.notify_of_external_update(self.appliance.status)
         self.startable.notify_of_external_update(self.appliance.startable)
         self.started.notify_of_external_update(self.appliance.started)
         self.remote_control_active.notify_of_external_update(self.appliance.program_remote_control_active)

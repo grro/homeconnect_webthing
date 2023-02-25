@@ -41,6 +41,8 @@ class Appliance(EventListener):
         self._power = ""
         self._door = ""
         self._operation = ""
+        self.completed = True
+        self.status = "INACTIVE"
         self.__program_active = ""
         self.child_lock = False
         self._reload_status_and_settings()
@@ -88,7 +90,45 @@ class Appliance(EventListener):
         self.__value_changed_listeners.add(value_changed_listener)
         self._notify_listeners()
 
+    def __update_state(self):
+        if self.power.lower() == "on" and self.operation.lower() == 'delayedstart':
+            new_status = "DELAYED_STARTED"
+
+        elif self.power.lower() == "on" and self.operation.lower() == 'run':
+            new_status = "STARTED"
+            self.completed = False
+
+        elif self.power.lower() == "on" and \
+             not self.completed and \
+             self.door.lower() == "closed" and \
+             self.remote_start_allowed and \
+             self.operation.lower() not in ['delayedstart', 'run', 'finished', 'inactive']:
+            new_status = "REMOTE_STARTABLE"
+
+        elif self.power.lower() != "on":
+            new_status = "INACTIVE"
+            self.completed = True
+
+        else:
+            new_status = "INACTIVE"
+
+        if self.status != new_status:
+            logging.info("new status: " + new_status + " (previous: " + self.status + ")")
+            self.status = new_status
+
+
     def _notify_listeners(self):
+        self.__update_state()
+
+        # will be removed
+        self.startable = self.door.lower() == "closed" and \
+                         self.power.lower() == "on" and \
+                         self.remote_start_allowed and \
+                         self.operation.lower() not in ['delayedstart', 'run', 'finished', 'inactive']
+        self.started = self.power.lower() == "on" and \
+                       self.door.lower() == "closed" and \
+                       self.operation.lower() in ['delayedstart', 'run']
+
         for value_changed_listener in self.__value_changed_listeners:
             value_changed_listener()
 
@@ -122,18 +162,18 @@ class Appliance(EventListener):
     def _reload_status_and_settings(self):
         self.last_refresh = datetime.now()
         try:
+            status = self._perform_get('/status').get('data', {}).get('status', {})
+            self._on_values_changed(status, "reload status", notify_listeners=False)
+
             settings = self._perform_get('/settings').get('data', {}).get('settings', {})
             self._on_values_changed(settings, "reload settings")
-
-            status = self._perform_get('/status').get('data', {}).get('status', {})
-            self._on_values_changed(status, "reload status")
         except Exception as e:
             if isinstance(e, OfflineException):
                 logging.info(self.name + " is offline. Could not query current status/settings")
             else:
                 logging.warning(self.name + " error occurred on refreshing" + str(e))
 
-    def _on_values_changed(self, changes: List[Dict[str, Any]], source: str):
+    def _on_values_changed(self, changes: List[Dict[str, Any]], source: str, notify_listeners: bool = True):
         if len(changes) > 0:
             for change in changes:
                 key = str(change.get('key', ""))
@@ -143,7 +183,8 @@ class Appliance(EventListener):
                         logging.warning(self.name + " unhandled change " + str(change) + " (" + source + ")")
                 except Exception as e:
                     logging.warning("error occurred by handling change with key " + key + " (" + source + ")" + " " + str(e) + "(" + source + ")")
-        self._notify_listeners()
+        if notify_listeners:
+            self._notify_listeners()
 
     def _on_value_changed(self, key: str, change: Dict[str, Any], source: str) -> bool:
         if key == 'BSH.Common.Status.DoorState':
@@ -298,16 +339,6 @@ class Dishwasher(Appliance):
             return super()._on_value_changed(key, change, source)
         return True
 
-    def _notify_listeners(self):
-        self.startable = self.door.lower() == "closed" and \
-                         self.power.lower() == "on" and \
-                         self.remote_start_allowed and \
-                         self.operation.lower() not in ['delayedstart', 'run', 'finished', 'inactive']
-        self.started = self.power.lower() == "on" and \
-                       self.door.lower() == "closed" and \
-                       self.operation.lower() in ['delayedstart', 'run']
-        super()._notify_listeners()
-
     def read_start_date(self) -> str:
         start_date = datetime.now() + timedelta(seconds=self.__program_start_in_relative_sec)
         if start_date > datetime.now():
@@ -399,7 +430,12 @@ class FinishInAppliance(Appliance):
         return file
 
     def _on_value_changed(self, key: str, change: Dict[str, Any], source: str) -> bool:
-        if key == 'BSH.Common.Option.FinishInRelative':  # supported by dryer & washer only
+        if key == 'BSH.Common.Status.OperationState':
+            operation = change.get('value', "undefined")
+            if operation != self._operation:
+                logging.info(self.name + " field 'operation state': " + str(operation) + ". previous state = " + str(self._operation) + " (" + source + ")")
+                self._operation = operation
+        elif key == 'BSH.Common.Option.FinishInRelative':  # supported by dryer & washer only
             if 'value' in change.keys():
                 self._program_finish_in_relative_sec = int(change['value'])
                 logging.info(self.name + " field 'finish in relative': " + str(self._program_finish_in_relative_sec) + " (" + source + ")")
@@ -420,17 +456,6 @@ class FinishInAppliance(Appliance):
             # unhandled
             return super()._on_value_changed(key, change, source)
         return True
-
-    def _notify_listeners(self):
-        self.startable = self.door.lower() == "closed" and \
-                         self.power.lower() == "on" and \
-                         self.remote_start_allowed and \
-                         self.program_remote_control_active and \
-                         self.operation.lower() not in ['delayedstart', 'run', 'finished', 'inactive']
-        self.started = self.power.lower() == "on" and \
-                       self.door.lower() == "closed" and \
-                       self.operation.lower() in ['delayedstart', 'run']
-        super()._notify_listeners()
 
     def read_start_date(self) -> str:
         if self.operation.lower() == 'delayedstart' and self._program_finish_in_relative_sec > 0:
