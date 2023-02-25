@@ -23,12 +23,12 @@ class Appliance(EventListener):
     ON = "On"
     OFF = "Off"
 
-    INACTIVE = "INACTIVE"
+    READY = "READY"
     REMOTE_STARTABLE = "REMOTE_STARTABLE"
     DELAYED_STARTED = "DELAYED_STARTED"
     RUNNING = "RUNNING"
     FINISHED = "FINISHED"
-    VALID_STATES = [INACTIVE, REMOTE_STARTABLE, DELAYED_STARTED, RUNNING, FINISHED]
+    VALID_STATES = [READY, REMOTE_STARTABLE, DELAYED_STARTED, RUNNING, FINISHED]
 
     def __init__(self, device_uri: str, auth: Auth, name: str, device_type: str, haid: str, brand: str, vib: str, enumber: str):
         self._device_uri = device_uri
@@ -55,7 +55,7 @@ class Appliance(EventListener):
         self.__program_active = ""
         self.child_lock = False
         self.__db = SimpleDB(haid + '_db', sync_period_sec=0)
-        self.status = self.__db.get("state", self.INACTIVE)
+        self.status = self.__db.get("state", self.READY)
         self.program_completed = self.__db.get("completed", True)
         self._reload_status_and_settings()
         self._reload_selected_program(ignore_error=True)
@@ -109,19 +109,18 @@ class Appliance(EventListener):
             new_status = self.RUNNING
             self.program_completed = False
             self.__db.put("completed", self.program_completed)
-        elif self.power.lower() == self.ON.lower() and \
-             self.program_completed and \
+        elif self.power.lower() == self.ON.lower() and self.operation.lower() == 'ready' and \
              self.door.lower() == "closed" and \
-             self.remote_start_allowed and \
-             self.operation.lower() not in ['delayedstart', 'run', 'finished', 'inactive']:
+             self.program_completed and \
+             self.remote_start_allowed:
             new_status = self.REMOTE_STARTABLE
-        elif self.power.lower() != self.ON.lower():
-            new_status = self.INACTIVE
+        elif self.power.lower() != self.ON.lower():    # power off completes the program
+            new_status = self.READY
             self.program_completed = True
             self.__db.put("completed", self.program_completed)
         else:
             if self.program_completed:
-                new_status = self.INACTIVE
+                new_status = self.READY
             else:
                 new_status = self.FINISHED
 
