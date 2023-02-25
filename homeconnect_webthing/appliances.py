@@ -23,12 +23,12 @@ class Appliance(EventListener):
     ON = "On"
     OFF = "Off"
 
-    READY = "READY"
-    REMOTE_STARTABLE = "REMOTE_STARTABLE"
+    IDLING = "IDLING"
+    STARTABLE = "STARTABLE"
     DELAYED_STARTED = "DELAYED_STARTED"
     RUNNING = "RUNNING"
     FINISHED = "FINISHED"
-    VALID_STATES = [READY, REMOTE_STARTABLE, DELAYED_STARTED, RUNNING, FINISHED]
+    VALID_STATES = [IDLING, STARTABLE, DELAYED_STARTED, RUNNING, FINISHED]
 
     def __init__(self, device_uri: str, auth: Auth, name: str, device_type: str, haid: str, brand: str, vib: str, enumber: str):
         self._device_uri = device_uri
@@ -42,8 +42,8 @@ class Appliance(EventListener):
         self.__value_changed_listeners = set()
         self.last_refresh = datetime.now() - timedelta(hours=9)
         self.remote_start_allowed = False
-        self.startable = False
-        self.started = False
+        self.startable = False   # deprecated
+        self.started = False      # deprecated
         self.program_remote_control_active = False
         self._program_selected = ""
         self.program_remaining_time_sec = 0
@@ -55,7 +55,7 @@ class Appliance(EventListener):
         self.__program_active = ""
         self.child_lock = False
         self.__db = SimpleDB(haid + '_db', sync_period_sec=0)
-        self.status = self.__db.get("state", self.READY)
+        self.status = self.__db.get("state", self.IDLING)
         self.program_completed = self.__db.get("completed", True)
         self._reload_status_and_settings()
         self._reload_selected_program(ignore_error=True)
@@ -113,14 +113,14 @@ class Appliance(EventListener):
              self.door.lower() == "closed" and \
              self.program_completed and \
              self.remote_start_allowed:
-            new_status = self.REMOTE_STARTABLE
+            new_status = self.STARTABLE
         elif self.power.lower() != self.ON.lower():    # power off completes the program
-            new_status = self.READY
+            new_status = self.IDLING
             self.program_completed = True
             self.__db.put("completed", self.program_completed)
         else:
             if self.program_completed:
-                new_status = self.READY
+                new_status = self.IDLING
             else:
                 new_status = self.FINISHED
 
@@ -132,11 +132,12 @@ class Appliance(EventListener):
     def _notify_listeners(self):
         self.__update_state()
 
-        # will be removed
+        #  # deprecated
         self.startable = self.door.lower() == "closed" and \
                          self.power.lower() == "on" and \
                          self.remote_start_allowed and \
                          self.operation.lower() not in ['delayedstart', 'run', 'finished', 'inactive']
+        # deprecated
         self.started = self.power.lower() == "on" and \
                        self.door.lower() == "closed" and \
                        self.operation.lower() in ['delayedstart', 'run']
