@@ -126,7 +126,7 @@ class ApplianceThing(Thing):
                      metadata={
                          'title': 'status',
                          "type": "string",
-                         'description': 'The status',
+                         'description': 'The status (valid values ' + ",".join(appliance.VALID_STATES) + ')',
                          'readOnly': True,
                      }))
 
