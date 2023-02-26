@@ -1,5 +1,6 @@
 import logging
 import requests
+import traceback
 import sseclient
 from abc import ABC, abstractmethod
 from time import sleep
@@ -141,6 +142,7 @@ class EventStream:
                         if self.stream is None:
                             return
                 except Exception as e:
+                    #traceback.print_exc()
                     if datetime.now() > (connect_time + timedelta(seconds=self.max_lifetime_sec)):
                         self.close("Max lifetime " + print_duration(self.max_lifetime_sec) + " reached (periodic reconnect)")
                     else:

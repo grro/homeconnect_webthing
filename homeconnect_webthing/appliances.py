@@ -4,9 +4,6 @@ import json
 from time import sleep
 from typing import List, Dict, Any
 from datetime import datetime, timedelta
-from os.path import exists, join
-from os import makedirs
-from appdirs import site_data_dir
 from redzoo.database.simple import SimpleDB
 from homeconnect_webthing.auth import Auth
 from homeconnect_webthing.eventstream import EventListener
@@ -54,9 +51,8 @@ class Appliance(EventListener):
         self._operation = ""
         self.__program_active = ""
         self.child_lock = False
-        self.__db = SimpleDB(haid + '_db', sync_period_sec=0)
+        self.__db = SimpleDB(haid + '_db')
         self.status = self.__db.get("state", self.IDLING)
-        self.program_completed = self.__db.get("completed", True)
         self._reload_status_and_settings()
         self._reload_selected_program(ignore_error=True)
 
@@ -106,9 +102,6 @@ class Appliance(EventListener):
         # power off (completes the program)
         if self.power.lower() != self.ON.lower():
             new_status = self.IDLING
-            self.program_completed = True
-            if self.__db.get("completed") != self.program_completed:
-                self.__db.put("completed", self.program_completed)
         # power on
         else:
             if self.operation.lower() == 'delayedstart':
@@ -120,14 +113,12 @@ class Appliance(EventListener):
                     self.__db.put("completed", self.program_completed)
             elif self.operation.lower() == 'ready' and \
                  self.door.lower() == "closed" and \
-                 self.program_completed and \
                  self.remote_start_allowed:
                 new_status = self.STARTABLE
+            elif self.operation.lower() == 'finished':
+                new_status = self.FINISHED
             else:
-                if self.program_completed:
-                    new_status = self.IDLING
-                else:
-                    new_status = self.FINISHED
+                new_status = self.IDLING
 
         if self.status != new_status:
             logging.info("new status: " + new_status + " (previous: " + self.status + ")")
@@ -158,7 +149,13 @@ class Appliance(EventListener):
         logging.info(self.name + " has been disconnected (event stream)")
 
     def on_keep_alive_event(self, event):
-        self._notify_listeners()
+        try:
+            if (self.last_refresh + timedelta(minutes=15)) < datetime.now():
+                #logging.debug(self.name + " periodic refresh")
+                self._reload_status_and_settings()
+            self._notify_listeners()
+        except Exception as e:
+            logging.warning("error occurred processing keep alive event "+  str(e))
 
     def on_notify_event(self, event):
         self._on_value_changed_event(event)
@@ -187,6 +184,7 @@ class Appliance(EventListener):
             self._on_values_changed(settings, "reload settings")
         except Exception as e:
             if isinstance(e, OfflineException):
+                self._power = ""
                 logging.info(self.name + " is offline. Could not query current status/settings")
             else:
                 logging.warning(self.name + " error occurred on refreshing" + str(e))
@@ -427,7 +425,7 @@ class FinishInAppliance(Appliance):
         self._program_finish_in_relative_sec = 0
         self.__program_finish_in_relative_max_sec = 86000
         self.__program_finish_in_relative_stepsize_sec = 60
-        self._durations = SimpleDB(haid + '_durations', sync_period_sec=0)
+        self._durations = SimpleDB(haid + '_durations')
         super().__init__(device_uri, auth, name, device_type, haid, brand, vib, enumber)
 
     def _on_value_changed(self, key: str, change: Dict[str, Any], source: str) -> bool:
