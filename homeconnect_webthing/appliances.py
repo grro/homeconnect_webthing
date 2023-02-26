@@ -103,26 +103,31 @@ class Appliance(EventListener):
         self._notify_listeners()
 
     def __update_state(self):
-        if self.power.lower() == self.ON.lower() and self.operation.lower() == 'delayedstart':
-            new_status = self.DELAYED_STARTED
-        elif self.power.lower() == self.ON.lower() and self.operation.lower() == 'run':
-            new_status = self.RUNNING
-            self.program_completed = False
-            self.__db.put("completed", self.program_completed)
-        elif self.power.lower() == self.ON.lower() and self.operation.lower() == 'ready' and \
-             self.door.lower() == "closed" and \
-             self.program_completed and \
-             self.remote_start_allowed:
-            new_status = self.STARTABLE
-        elif self.power.lower() != self.ON.lower():    # power off completes the program
+        # power off (completes the program)
+        if self.power.lower() != self.ON.lower():
             new_status = self.IDLING
             self.program_completed = True
-            self.__db.put("completed", self.program_completed)
+            if self.__db.get("completed") != self.program_completed:
+                self.__db.put("completed", self.program_completed)
+        # power on
         else:
-            if self.program_completed:
-                new_status = self.IDLING
+            if self.operation.lower() == 'delayedstart':
+                new_status = self.DELAYED_STARTED
+            elif self.operation.lower() == 'run':
+                new_status = self.RUNNING
+                self.program_completed = False
+                if self.__db.get("completed") != self.program_completed:
+                    self.__db.put("completed", self.program_completed)
+            elif self.operation.lower() == 'ready' and \
+                 self.door.lower() == "closed" and \
+                 self.program_completed and \
+                 self.remote_start_allowed:
+                new_status = self.STARTABLE
             else:
-                new_status = self.FINISHED
+                if self.program_completed:
+                    new_status = self.IDLING
+                else:
+                    new_status = self.FINISHED
 
         if self.status != new_status:
             logging.info("new status: " + new_status + " (previous: " + self.status + ")")
