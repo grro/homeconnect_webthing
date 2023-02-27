@@ -105,7 +105,7 @@ class Appliance(EventListener):
     def status(self, new_status: str):
         if self.status != new_status:
             logging.info("new status: " + new_status + " (previous: " + self.status + ")")
-            self.__db.put("state", self.status)
+            self.__db.put("state", new_status)
 
     @property
     def __previous_program_completed(self) -> bool:
