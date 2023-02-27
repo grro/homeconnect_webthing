@@ -52,7 +52,6 @@ class Appliance(EventListener):
         self.__program_active = ""
         self.child_lock = False
         self.__db = SimpleDB(haid + '_db')
-        self.status = self.__db.get("state", self.IDLING)
         self._reload_status_and_settings()
         self._reload_selected_program(ignore_error=True)
 
@@ -75,7 +74,7 @@ class Appliance(EventListener):
 
     @property
     def operation(self):
-        if len(self._operation)> 0:
+        if len(self._operation) > 0:
             return self._operation[self._operation.rindex('.')+1:]
         else:
             return ""
@@ -98,32 +97,45 @@ class Appliance(EventListener):
         self.__value_changed_listeners.add(value_changed_listener)
         self._notify_listeners()
 
+    @property
+    def status(self) -> str:
+        return self.__db.get("state", self.IDLING)
+
+    @status.setter
+    def status(self, new_status: str):
+        if self.status != new_status:
+            logging.info("new status: " + new_status + " (previous: " + self.status + ")")
+            self.__db.put("state", self.status)
+
+    @property
+    def __previous_program_completed(self) -> bool:
+        return self.__db.get("previous_program_completed", True)
+
+    @__previous_program_completed.setter
+    def __previous_program_completed(self, completed: bool):
+        self.__db.put("previous_program_completed", completed)
+
     def __update_state(self):
         # power off (completes the program)
         if self.power.lower() != self.ON.lower():
-            new_status = self.IDLING
+            self.status = self.IDLING
+            self.__previous_program_completed = True
         # power on
         else:
             if self.operation.lower() == 'delayedstart':
-                new_status = self.DELAYED_STARTED
+                self.status = self.DELAYED_STARTED
             elif self.operation.lower() == 'run':
-                new_status = self.RUNNING
-                self.program_completed = False
-                if self.__db.get("completed") != self.program_completed:
-                    self.__db.put("completed", self.program_completed)
-            elif self.operation.lower() == 'ready' and \
-                 self.door.lower() == "closed" and \
-                 self.remote_start_allowed:
-                new_status = self.STARTABLE
+                self.status = self.RUNNING
+                self.__previous_program_completed = False
+            elif self.operation.lower() == 'ready' and self.door.lower() != 'closed':
+                self.__previous_program_completed = True
+                self.status = self.FINISHED
+            elif self.operation.lower() == 'ready' and self.door.lower() == "closed" and self.__previous_program_completed and self.remote_start_allowed:
+                self.status = self.STARTABLE
             elif self.operation.lower() == 'finished':
-                new_status = self.FINISHED
+                self.status = self.FINISHED
             else:
-                new_status = self.IDLING
-
-        if self.status != new_status:
-            logging.info("new status: " + new_status + " (previous: " + self.status + ")")
-            self.status = new_status
-            self.__db.put("state", self.status)
+                self.status = self.IDLING
 
     def _notify_listeners(self):
         self.__update_state()
@@ -150,8 +162,7 @@ class Appliance(EventListener):
 
     def on_keep_alive_event(self, event):
         try:
-            if (self.last_refresh + timedelta(minutes=15)) < datetime.now():
-                #logging.debug(self.name + " periodic refresh")
+            if (self.last_refresh + timedelta(minutes=30)) < datetime.now():
                 self._reload_status_and_settings()
             self._notify_listeners()
         except Exception as e:
