@@ -116,25 +116,22 @@ class Appliance(EventListener):
         self.__db.put("previous_program_completed", completed)
 
     def __update_state(self):
-        # power off (completes the program)
-        if self.power.lower() != self.ON.lower():
-            self.status = self.IDLING
-            self.__previous_run_completed = True
-        # power on
+        power = self.power.lower() == self.ON.lower()
+        operation = self.operation.lower()
+
+        if power and operation == 'delayedstart':
+            self.status = self.DELAYED_STARTED
+        elif power and operation == 'run':
+            self.status = self.RUNNING
+            self.__previous_run_completed = False
+        elif power and operation == 'ready' and self.door.lower() == "closed" and self.__previous_run_completed and self.remote_start_allowed:
+            self.status = self.STARTABLE
+        elif power and operation == 'finished':
+            self.status = self.FINISHED
         else:
-            if self.operation.lower() == 'delayedstart':
-                self.status = self.DELAYED_STARTED
-            elif self.operation.lower() == 'run':
-                self.status = self.RUNNING
-                self.__previous_run_completed = False
-            elif self.operation.lower() == 'ready' and self.door.lower() == "closed" and self.__previous_run_completed and self.remote_start_allowed:
-                self.status = self.STARTABLE
-            elif self.operation.lower() == 'finished':
-                self.status = self.FINISHED
-            else:
-                self.status = self.IDLING
-                if self.door.lower() == 'open':
-                    self.__previous_run_completed = True
+            self.status = self.IDLING
+            if self.door.lower() == 'open' or not power:
+                self.__previous_run_completed = True
 
     def _notify_listeners(self):
         self.__update_state()
