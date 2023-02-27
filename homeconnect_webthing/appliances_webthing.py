@@ -124,7 +124,7 @@ class ApplianceThing(Thing):
                      'status',
                      self.status,
                      metadata={
-                         'title': 'status',
+                         'title': 'Status',
                          "type": "string",
                          'description': 'The status (valid values ' + ", ".join(appliance.VALID_STATES) + ')',
                          'readOnly': True,

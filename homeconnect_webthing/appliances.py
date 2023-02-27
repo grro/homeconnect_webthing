@@ -127,7 +127,7 @@ class Appliance(EventListener):
             elif self.operation.lower() == 'run':
                 self.status = self.RUNNING
                 self.__previous_program_completed = False
-            elif self.operation.lower() == 'ready' and self.door.lower() != 'closed':
+            elif self.operation.lower() == 'ready' and self.door.lower() == 'open':
                 self.__previous_program_completed = True
                 self.status = self.FINISHED
             elif self.operation.lower() == 'ready' and self.door.lower() == "closed" and self.__previous_program_completed and self.remote_start_allowed:
