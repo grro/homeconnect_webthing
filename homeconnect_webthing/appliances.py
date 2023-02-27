@@ -39,8 +39,6 @@ class Appliance(EventListener):
         self.__value_changed_listeners = set()
         self.last_refresh = datetime.now() - timedelta(hours=9)
         self.remote_start_allowed = False
-        self.startable = False   # deprecated
-        self.started = False      # deprecated
         self.program_remote_control_active = False
         self._program_selected = ""
         self.program_remaining_time_sec = 0
@@ -135,17 +133,6 @@ class Appliance(EventListener):
 
     def _notify_listeners(self):
         self.__update_state()
-
-        #  # deprecated
-        self.startable = self.door.lower() == "closed" and \
-                         self.power.lower() == "on" and \
-                         self.remote_start_allowed and \
-                         self.operation.lower() not in ['delayedstart', 'run', 'finished', 'inactive']
-        # deprecated
-        self.started = self.power.lower() == "on" and \
-                       self.door.lower() == "closed" and \
-                       self.operation.lower() in ['delayedstart', 'run']
-
         for value_changed_listener in self.__value_changed_listeners:
             value_changed_listener()
 

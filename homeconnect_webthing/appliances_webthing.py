@@ -154,30 +154,6 @@ class ApplianceThing(Thing):
                          'readOnly': True,
                      }))
 
-        self.startable = Value(appliance.startable)
-        self.add_property(
-            Property(self,
-                     'startable',
-                     self.startable,
-                     metadata={
-                         'title': 'Startable',
-                         "type": "boolean",
-                         'description': 'True, if the appliance can be started remotely',
-                         'readOnly': True,
-                     }))
-
-        self.started = Value(appliance.started)
-        self.add_property(
-            Property(self,
-                     'started',
-                     self.started,
-                     metadata={
-                         'title': 'Started',
-                         "type": "boolean",
-                         'description': 'True, if the appliance is (delayed) started',
-                         'readOnly': True,
-                     }))
-
         self.remote_control_active = Value(appliance.program_remote_control_active)
         self.add_property(
             Property(self,
@@ -228,8 +204,6 @@ class ApplianceThing(Thing):
         self.operation.notify_of_external_update(self.appliance.operation)
         self.remote_start_allowed.notify_of_external_update(self.appliance.remote_start_allowed)
         self.status.notify_of_external_update(self.appliance.status)
-        self.startable.notify_of_external_update(self.appliance.startable)
-        self.started.notify_of_external_update(self.appliance.started)
         self.remote_control_active.notify_of_external_update(self.appliance.program_remote_control_active)
         self.enumber.notify_of_external_update(self.appliance.enumber)
         self.vib.notify_of_external_update(self.appliance.vib)
