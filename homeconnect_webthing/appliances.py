@@ -363,7 +363,7 @@ class Dishwasher(Appliance):
         if len(self._program_selected) == 0:
             logging.warning("ignoring start command. No program selected")
 
-        elif self.startable:
+        elif  self.status == self.STARTABLE:
             remaining_secs_to_wait = int((datetime.fromisoformat(start_date) - datetime.now()).total_seconds())
             if remaining_secs_to_wait < 0:
                 remaining_secs_to_wait = 0
@@ -497,7 +497,7 @@ class FinishInAppliance(Appliance):
         self._reload_selected_program()
 
         # when startable
-        if self.startable:
+        if  self.status == self.STARTABLE:
             program_duration_sec = self.__program_duration_sec()
             data = {
                 "data": {
