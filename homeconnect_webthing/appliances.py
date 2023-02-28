@@ -20,12 +20,13 @@ class Appliance(EventListener):
     ON = "On"
     OFF = "Off"
 
-    READY = "READY"
-    STARTABLE = "STARTABLE"
-    DELAYED_STARTED = "DELAYED_STARTED"
-    RUNNING = "RUNNING"
-    FINISHED = "FINISHED"
-    VALID_STATES = [READY, STARTABLE, DELAYED_STARTED, RUNNING, FINISHED]
+    STATE_READY = "READY"
+    STATE_STARTABLE = "STARTABLE"
+    STATE_DELAYED_STARTED = "DELAYED_STARTED"
+    STATE_RUNNING = "RUNNING"
+    STATE_FINISHED = "FINISHED"
+    STATE_OFF = "OFF"
+    VALID_STATES = [STATE_READY, STATE_STARTABLE, STATE_DELAYED_STARTED, STATE_RUNNING, STATE_FINISHED, STATE_OFF]
 
     def __init__(self, device_uri: str, auth: Auth, name: str, device_type: str, haid: str, brand: str, vib: str, enumber: str):
         self._device_uri = device_uri
@@ -97,7 +98,7 @@ class Appliance(EventListener):
 
     @property
     def status(self) -> str:
-        return self.__db.get("state", self.READY)
+        return self.__db.get("state", self.STATE_READY)
 
     @status.setter
     def status(self, new_status: str):
@@ -118,21 +119,23 @@ class Appliance(EventListener):
         operation = self.operation.lower()
 
         if power and operation == 'delayedstart':
-            self.status = self.DELAYED_STARTED
+            self.status = self.STATE_DELAYED_STARTED
         elif power and operation == 'run':
-            self.status = self.RUNNING
+            self.status = self.STATE_RUNNING
             self.__previous_run_completed = False
         elif power and operation == 'ready' and self.door.lower() == "closed" and self.__previous_run_completed and self.remote_start_allowed:
-            self.status = self.STARTABLE
+            self.status = self.STATE_STARTABLE
         elif power and operation == 'finished':
-            self.status = self.FINISHED
+            self.status = self.STATE_FINISHED
         else:
-            if power and self.door.lower() == 'closed':
-                self.status = self.READY
-            else:
-                self.status = self.FINISHED
             if self.door.lower() == 'open' or not power:
                 self.__previous_run_completed = True
+            if power and self.door.lower() == 'closed':
+                self.status = self.STATE_READY
+            elif power:
+                self.status = self.STATE_FINISHED
+            else:
+                self.status = self.OFF
 
     def _notify_listeners(self):
         self.__update_state()
@@ -366,7 +369,7 @@ class Dishwasher(Appliance):
         if len(self._program_selected) == 0:
             logging.warning("ignoring start command. No program selected")
 
-        elif self.status == self.STARTABLE:
+        elif self.status == self.STATE_STARTABLE:
             remaining_secs_to_wait = int((datetime.fromisoformat(start_date) - datetime.now()).total_seconds())
             if remaining_secs_to_wait < 0:
                 remaining_secs_to_wait = 0
@@ -470,7 +473,7 @@ class FinishInAppliance(Appliance):
     def __program_duration_sec(self):
         # will update props, if duration is available
         program_fingerprint = self._program_fingerprint()
-        if len(self.program_selected) > 0 and self._program_finish_in_relative_sec > 0 and self.status == self.READY:
+        if len(self.program_selected) > 0 and self._program_finish_in_relative_sec > 0 and self.status == self.STATE_READY:
             if self._durations.get(program_fingerprint, -1) != self._program_finish_in_relative_sec:   # duration changed?
                 self._durations.put(program_fingerprint, self._program_finish_in_relative_sec)
                 logging.info("duration update for " + program_fingerprint + " with " + str(self._program_finish_in_relative_sec))
@@ -500,7 +503,7 @@ class FinishInAppliance(Appliance):
         self._reload_selected_program()
 
         # when startable
-        if self.status == self.STARTABLE:
+        if self.status == self.STATE_STARTABLE:
             program_duration_sec = self.__program_duration_sec()
             data = {
                 "data": {
