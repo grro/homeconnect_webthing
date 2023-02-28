@@ -20,12 +20,12 @@ class Appliance(EventListener):
     ON = "On"
     OFF = "Off"
 
-    IDLING = "IDLING"
+    READY = "READY"
     STARTABLE = "STARTABLE"
     DELAYED_STARTED = "DELAYED_STARTED"
     RUNNING = "RUNNING"
     FINISHED = "FINISHED"
-    VALID_STATES = [IDLING, STARTABLE, DELAYED_STARTED, RUNNING, FINISHED]
+    VALID_STATES = [READY, STARTABLE, DELAYED_STARTED, RUNNING, FINISHED]
 
     def __init__(self, device_uri: str, auth: Auth, name: str, device_type: str, haid: str, brand: str, vib: str, enumber: str):
         self._device_uri = device_uri
@@ -97,7 +97,7 @@ class Appliance(EventListener):
 
     @property
     def status(self) -> str:
-        return self.__db.get("state", self.IDLING)
+        return self.__db.get("state", self.READY)
 
     @status.setter
     def status(self, new_status: str):
@@ -128,7 +128,7 @@ class Appliance(EventListener):
             self.status = self.FINISHED
         else:
             if power and self.door.lower() == 'closed':
-                self.status = self.IDLING
+                self.status = self.READY
             else:
                 self.status = self.FINISHED
             if self.door.lower() == 'open' or not power:
@@ -470,7 +470,7 @@ class FinishInAppliance(Appliance):
     def __program_duration_sec(self):
         # will update props, if duration is available
         program_fingerprint = self._program_fingerprint()
-        if len(self.program_selected) > 0 and self._program_finish_in_relative_sec > 0 and self.status == self.IDLING:
+        if len(self.program_selected) > 0 and self._program_finish_in_relative_sec > 0 and self.status == self.READY:
             if self._durations.get(program_fingerprint, -1) != self._program_finish_in_relative_sec:   # duration changed?
                 self._durations.put(program_fingerprint, self._program_finish_in_relative_sec)
                 logging.info("duration update for " + program_fingerprint + " with " + str(self._program_finish_in_relative_sec))
