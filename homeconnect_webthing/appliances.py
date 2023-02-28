@@ -127,7 +127,10 @@ class Appliance(EventListener):
         elif power and operation == 'finished':
             self.status = self.FINISHED
         else:
-            self.status = self.IDLING
+            if power and self.door.lower() == 'closed':
+                self.status = self.IDLING
+            else:
+                self.status = self.FINISHED
             if self.door.lower() == 'open' or not power:
                 self.__previous_run_completed = True
 
@@ -363,7 +366,7 @@ class Dishwasher(Appliance):
         if len(self._program_selected) == 0:
             logging.warning("ignoring start command. No program selected")
 
-        elif  self.status == self.STARTABLE:
+        elif self.status == self.STARTABLE:
             remaining_secs_to_wait = int((datetime.fromisoformat(start_date) - datetime.now()).total_seconds())
             if remaining_secs_to_wait < 0:
                 remaining_secs_to_wait = 0
@@ -467,7 +470,7 @@ class FinishInAppliance(Appliance):
     def __program_duration_sec(self):
         # will update props, if duration is available
         program_fingerprint = self._program_fingerprint()
-        if len(self.program_selected) > 0 and self._program_finish_in_relative_sec > 0 and self.operation.lower() not in ['delayedstart', 'run', 'finished', 'inactive']:
+        if len(self.program_selected) > 0 and self._program_finish_in_relative_sec > 0 and self.status == self.IDLING:
             if self._durations.get(program_fingerprint, -1) != self._program_finish_in_relative_sec:   # duration changed?
                 self._durations.put(program_fingerprint, self._program_finish_in_relative_sec)
                 logging.info("duration update for " + program_fingerprint + " with " + str(self._program_finish_in_relative_sec))
@@ -497,7 +500,7 @@ class FinishInAppliance(Appliance):
         self._reload_selected_program()
 
         # when startable
-        if  self.status == self.STARTABLE:
+        if self.status == self.STARTABLE:
             program_duration_sec = self.__program_duration_sec()
             data = {
                 "data": {
