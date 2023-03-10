@@ -367,33 +367,15 @@ class Dishwasher(Appliance):
         if len(self._program_selected) == 0:
             logging.warning("ignoring start command. No program selected")
 
-        elif self.state == self.STATE_STARTABLE:
+        else:
             remaining_secs_to_wait = int((datetime.fromisoformat(start_date) - datetime.now()).total_seconds())
             if remaining_secs_to_wait < 0:
                 remaining_secs_to_wait = 0
             if remaining_secs_to_wait > self.__program_start_in_relative_sec_max:
                 remaining_secs_to_wait = self.__program_start_in_relative_sec_max
 
-            # update starttime (already started in a delayed manner
-            if self.operation.lower() in ['delayedstart']:
-                try:
-                    data = {
-                        "data": {
-                            "key": "BSH.Common.Option.StartInRelative",
-                            "value": remaining_secs_to_wait,
-                            "unit": "seconds"
-                        }
-                    }
-
-                    self._perform_put("/programs/active/options/BSH.Common.Option.StartInRelative", json.dumps(data, indent=2), max_trials=3)
-                    logging.info(self.name + " update start time: " + self.program_selected +
-                                 " starts in " + print_duration(remaining_secs_to_wait) +
-                                 " (duration " + print_duration(self.program_remaining_time_sec) + ")")
-                except Exception as e:
-                    logging.warning("error occurred by starting " + self.name + " " + str(e))
-
             # start in a delayed manner
-            else:
+            if self.state == self.STATE_STARTABLE:
                 try:
                     data = {
                         "data": {
@@ -412,9 +394,28 @@ class Dishwasher(Appliance):
                                  " (duration " + print_duration(self.program_remaining_time_sec) + ")")
                 except Exception as e:
                     logging.warning("error occurred by starting " + self.name + " " + str(e))
-        else:
-            logging.warning("ignoring start command. " + self.name + " is in state " + self._operation)
-        self._notify_listeners()
+
+            # update start time (already started in a delayed manner)
+            elif self.state == self.STATE_DELAYED_STARTED:
+                try:
+                    data = {
+                        "data": {
+                            "key": "BSH.Common.Option.StartInRelative",
+                            "value": remaining_secs_to_wait,
+                            "unit": "seconds"
+                        }
+                    }
+
+                    self._perform_put("/programs/active/options/BSH.Common.Option.StartInRelative", json.dumps(data, indent=2), max_trials=3)
+                    logging.info(self.name + " update start time: " + self.program_selected +
+                                 " starts in " + print_duration(remaining_secs_to_wait) +
+                                 " (duration " + print_duration(self.program_remaining_time_sec) + ")")
+                except Exception as e:
+                    logging.warning("error occurred by updating start time " + self.name + " " + str(e))
+
+            else:
+                logging.warning("ignoring start command. " + self.name + " is in state " + str(self.state))
+            self._notify_listeners()
 
 
 class FinishInAppliance(Appliance):
@@ -456,7 +457,7 @@ class FinishInAppliance(Appliance):
     def read_start_date(self) -> str:
         if self.operation.lower() == 'delayedstart' and self._program_finish_in_relative_sec > 0:
             start_date = datetime.now() + timedelta(seconds=self._program_finish_in_relative_sec) - timedelta(seconds=self.__program_duration_sec())
-            return start_date.strftime("%Y-%m-%d %H:%M")
+            return start_date.strftime("%Y-%m-%dT%H:%M")
         else:
             return ""
 
@@ -499,26 +500,34 @@ class FinishInAppliance(Appliance):
         self._reload_status_and_settings()
         self._reload_selected_program()
 
+
         # when startable
         if self.state == self.STATE_STARTABLE:
             program_duration_sec = self.__program_duration_sec()
-            data = {
-                "data": {
-                    "key": self._program_selected,
-                    "options": [{
-                        "key": "BSH.Common.Option.FinishInRelative",
-                        "value": self.__compute_remaining_secs_to_finish(start_date, program_duration_sec),
-                        "unit": "seconds"
-                    }]
-                }
-            }
+            remaining_secs_to_finish = self.__compute_remaining_secs_to_finish(start_date, program_duration_sec)
+
             try:
+                data = {
+                    "data": {
+                        "key": self._program_selected,
+                        "options": [{
+                            "key": "BSH.Common.Option.FinishInRelative",
+                            "value": remaining_secs_to_finish,
+                            "unit": "seconds"
+                        }]
+                    }
+                }
                 self._perform_put("/programs/active", json.dumps(data, indent=2), max_trials=3)
                 logging.info(self.name + " program " + self.program_selected + " starts at " + start_date + " (duration " + str(round(program_duration_sec/(60*60), 1)) + " h)")
             except Exception as e:
                 logging.warning("error occurred by starting " + self.name + " with program " + self.program_selected + " at " + start_date + " (duration: " + str(round(program_duration_sec/(60*60), 1)) + " h) " + str(e))
+
+        # update end time
+        elif self.state == self.STATE_DELAYED_STARTED:
+            logging.warning("updating start time currently not supported")
         else:
-            logging.warning(self.name + " not startable. Ignoring start command.")
+            logging.warning(self.name + " is in state " + str(self.state) + " Ignoring start command.")
+
 
 
 class Washer(FinishInAppliance):
