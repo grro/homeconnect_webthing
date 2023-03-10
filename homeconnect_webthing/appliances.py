@@ -223,7 +223,6 @@ class Appliance(EventListener):
             logging.info(self.name + " field 'program progress': " + str(self.__program_progress) + " (" + source + ")")
         elif key == 'BSH.Common.Status.LocalControlActive':
             self.__program_local_control_active = change.get('value', None)
-            logging.info(self.name + " field 'local control active': " + str(self.__program_local_control_active) + " (" + source + ")")
         elif key == 'BSH.Common.Status.RemoteControlActive':
             self.program_remote_control_active = change.get('value', False)
             logging.info(self.name + " field 'remote control active': " + str(self.program_remote_control_active) + " (" + source + ")")
@@ -329,7 +328,6 @@ class Dishwasher(Appliance):
         if key == 'BSH.Common.Option.StartInRelative':
             if 'value' in change.keys():
                 self.__program_start_in_relative_sec = change['value']
-                logging.info(self.name + " field 'start in relative': " + str(self.__program_start_in_relative_sec) + " (" + source + ")")
             if 'constraints' in change.keys():
                 constraints = change['constraints']
                 if 'max' in constraints.keys():
@@ -437,7 +435,6 @@ class FinishInAppliance(Appliance):
         elif key == 'BSH.Common.Option.FinishInRelative':  # supported by dryer & washer only
             if 'value' in change.keys():
                 self._program_finish_in_relative_sec = int(change['value'])
-                logging.info(self.name + " field 'finish in relative': " + str(self._program_finish_in_relative_sec) + " (" + source + ")")
             if 'constraints' in change.keys():
                 constraints = change['constraints']
                 if 'max' in constraints.keys():
