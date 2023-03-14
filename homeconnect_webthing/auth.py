@@ -1,5 +1,6 @@
 import logging
 import requests
+import uuid
 import webbrowser
 from os import path
 from datetime import datetime, timedelta
@@ -35,13 +36,16 @@ class Auth:
 
     @staticmethod
     def create(client_id: str, client_secret:str, scope: str = "IdentifyAppliance%20Dishwasher%20Dryer%20Washer"):
-        uri = Auth.URI + "/oauth/authorize?response_type=code&client_id=" + client_id + "&scope=" + scope
+        state = str(uuid.uuid4())
+        uri = Auth.URI + "/oauth/authorize?response_type=code&client_id=" + client_id + "&scope=" + scope + "&state=" + state
         webbrowser.open(uri)
 
         auth_result = input("Please enter the URL redirected to: ")
         query = urlsplit(auth_result).query
         params = parse_qs(query)
         authorization_code = params['code']
+        if params['state'][0] != state:
+            raise Exception("state mismatch")  # refer https://auth0.com/docs/secure/attack-protection/state-parameters
 
         data = {"client_id": client_id,
                 "client_secret": client_secret,

@@ -479,7 +479,7 @@ class FinishInAppliance(Appliance):
         # get duration
         duration_sec = self._durations.get(program_fingerprint, None)
         if duration_sec is None:
-            logging.warning("no duration stored. Using default (key: " + program_fingerprint + " available values: " + ", ".join([key + ": " + str(self._durations.get(key)) for key in self._durations.keys()]) + ")")
+            #logging.warning("no duration stored. Using default (key: " + program_fingerprint + " available values: " + ", ".join([key + ": " + str(self._durations.get(key)) for key in self._durations.keys()]) + ")")
             return 7222  # 2h
         else:
             return duration_sec
