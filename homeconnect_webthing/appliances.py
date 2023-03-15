@@ -473,8 +473,9 @@ class FinishInAppliance(Appliance):
         program_fingerprint = self._program_fingerprint()
         if len(self.program_selected) > 0 and self._program_finish_in_relative_sec > 0 and self.state == self.STATE_READY:
             if self._durations.get(program_fingerprint, -1) != self._program_finish_in_relative_sec:   # duration changed?
-                self._durations.put(program_fingerprint, self._program_finish_in_relative_sec)
-                logging.info("duration update for " + program_fingerprint + " with " + str(self._program_finish_in_relative_sec))
+                if self._program_finish_in_relative_sec < 5 * 60 * 60:
+                    self._durations.put(program_fingerprint, self._program_finish_in_relative_sec)
+                    logging.info("duration update for " + program_fingerprint + " with " + str(self._program_finish_in_relative_sec))
 
         # get duration
         logging.info("read duration for " + program_fingerprint)
