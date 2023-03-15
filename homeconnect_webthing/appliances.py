@@ -478,13 +478,11 @@ class FinishInAppliance(Appliance):
                     logging.info("duration update for " + program_fingerprint + " with " + str(self._program_finish_in_relative_sec))
 
         # get duration
-        logging.info("read duration for " + program_fingerprint)
         duration_sec = self._durations.get(program_fingerprint, None)
         if duration_sec is None:
             logging.warning("no duration stored. Using default (key: " + program_fingerprint + " available values: " + ", ".join([key + ": " + str(self._durations.get(key)) for key in self._durations.keys()]) + ")")
             return 7222  # 2h
         else:
-            logging.warning("got duration " + str(duration_sec))
             return duration_sec
 
     def __compute_remaining_secs_to_finish(self, start_date: str, duration_sec: int) -> int:
