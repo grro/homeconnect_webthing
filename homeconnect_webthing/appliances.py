@@ -476,6 +476,8 @@ class FinishInAppliance(Appliance):
                 if self._program_finish_in_relative_sec < 5 * 60 * 60:
                     self._durations.put(program_fingerprint, self._program_finish_in_relative_sec)
                     logging.info("duration update for " + program_fingerprint + " with " + str(self._program_finish_in_relative_sec))
+                else:
+                    logging.info("duration update for " + program_fingerprint + " with " + str(self._program_finish_in_relative_sec) + " ignored. Value seems to high")
 
         # get duration
         duration_sec = self._durations.get(program_fingerprint, None)
