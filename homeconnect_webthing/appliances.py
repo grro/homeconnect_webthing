@@ -652,7 +652,7 @@ class Dryer(FinishInAppliance):
     @property
     def program_drying_target_adjustment(self) -> str:
         if len(self.__program_drying_target_adjustment) > 0:
-            return self.__program_drying_.starget_adjustment[self.__program_drying_target_adjustment.rindex('.') + 1:]
+            return self.__program_drying_target_adjustment[self.__program_drying_target_adjustment.rindex('.') + 1:]
         else:
             return ""
 
