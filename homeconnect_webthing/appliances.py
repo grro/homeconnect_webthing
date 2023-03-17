@@ -503,12 +503,11 @@ class FinishInAppliance(Appliance):
         self._reload_status_and_settings()
         self._reload_selected_program()
 
-
         # when startable
         if self.state == self.STATE_STARTABLE:
             program_duration_sec = self.__program_duration_sec()
             remaining_secs_to_finish = self.__compute_remaining_secs_to_finish(start_date, program_duration_sec)
-            logging.info("remaining seconds to finished " + str(remaining_secs_to_finish) + " (" + print_duration(remaining_secs_to_finish) + ") computed for " + self.name + " with program " + self.program_selected + " (end date " + (datetime.fromisoformat(start_date) + timedelta(seconds=program_duration_sec)).strftime("%Y-%m-%dT%H:%M") + " = start date " + start_date + " + " + print_duration(program_duration_sec) + " program duration)")
+            logging.info("remaining seconds to finished " + str(remaining_secs_to_finish) + " (" + print_duration(remaining_secs_to_finish) + ") computed for " + self.name + " " + self.program_selected + " (end time " + (datetime.fromisoformat(start_date) + timedelta(seconds=program_duration_sec)).strftime("%H:%M") + " = start time " + datetime.fromisoformat(start_date).strftime("%H:%M") + " + " + print_duration(program_duration_sec) + " program duration)")
             try:
                 data = {
                     "data": {
