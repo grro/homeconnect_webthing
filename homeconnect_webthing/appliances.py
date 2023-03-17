@@ -508,7 +508,7 @@ class FinishInAppliance(Appliance):
         if self.state == self.STATE_STARTABLE:
             program_duration_sec = self.__program_duration_sec()
             remaining_secs_to_finish = self.__compute_remaining_secs_to_finish(start_date, program_duration_sec)
-
+            logging.info(str(remaining_secs_to_finish) + " remaining seconds to finished (" + print_duration(remaining_secs_to_finish) + ") computed for " + self.name + " with program " + self.program_selected + " (start date " + start_date + " + " + print_duration(program_duration_sec) + " program duration)")
             try:
                 data = {
                     "data": {
