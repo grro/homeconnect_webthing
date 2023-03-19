@@ -123,7 +123,7 @@ class Appliance(EventListener):
         elif power and operation == 'run':
             self.state = self.STATE_RUNNING
             self.__previous_run_completed = False
-        elif power and operation == 'ready' and self.door.lower() == "closed" and self.__previous_run_completed and self.remote_start_allowed:
+        elif power and operation == 'ready' and self.door.lower() == "closed" and self.__previous_run_completed and self.remote_start_allowed and self.program_remote_control_active:
             self.state = self.STATE_STARTABLE
         elif power and operation == 'finished':
             self.state = self.STATE_FINISHED
