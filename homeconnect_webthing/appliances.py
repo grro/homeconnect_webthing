@@ -372,7 +372,7 @@ class Dishwasher(Appliance):
             if remaining_secs_to_wait < 0:
                 remaining_secs_to_wait = 0
             if remaining_secs_to_wait >= self.__program_start_in_relative_sec_max:
-                logging.warning("remaining seconds to wait " + print_duration(remaining_secs_to_wait) + " is larger than " + print_duration(self.__program_start_in_relative_sec_max) + ". Ignore setting start date")
+                logging.warning("remaining seconds to wait " + print_duration(remaining_secs_to_wait) + " is larger than max supported value of " + print_duration(self.__program_start_in_relative_sec_max) + ". Ignore setting start date")
 
             # start in a delayed manner
             if self.state == self.STATE_STARTABLE:
@@ -508,7 +508,7 @@ class FinishInAppliance(Appliance):
             program_duration_sec = self.__program_duration_sec()
             remaining_secs_to_finish = self.__compute_remaining_secs_to_finish(start_date, program_duration_sec)
             if remaining_secs_to_finish >= self.__program_finish_in_relative_max_sec:
-                logging.warning("remaining seconds to finished " + print_duration(remaining_secs_to_finish) + " is larger than " + print_duration(self.__program_finish_in_relative_max_sec) + ". Ignore setting start date")
+                logging.warning("remaining seconds to finished " + print_duration(remaining_secs_to_finish) + " is larger than max supported value of " + print_duration(self.__program_finish_in_relative_max_sec) + ". Ignore setting start date")
             else:
                 logging.info("remaining seconds to finished " + str(remaining_secs_to_finish) + " (" + print_duration(remaining_secs_to_finish) + ") computed for " + self.name + " " + self.program_selected + " (end time " + (datetime.fromisoformat(start_date) + timedelta(seconds=program_duration_sec)).strftime("%H:%M") + " = start time " + datetime.fromisoformat(start_date).strftime("%H:%M") + " + " + print_duration(program_duration_sec) + " program duration)")
                 try:
