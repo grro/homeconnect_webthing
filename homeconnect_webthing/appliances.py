@@ -371,7 +371,7 @@ class Dishwasher(Appliance):
             remaining_secs_to_wait = int((datetime.fromisoformat(start_date) - datetime.now()).total_seconds())
             if remaining_secs_to_wait < 0:
                 remaining_secs_to_wait = 0
-            if remaining_secs_to_wait > self.__program_start_in_relative_sec_max:
+            if remaining_secs_to_wait >= self.__program_start_in_relative_sec_max:
                 raise Exception("remaining seconds to wait " + str(remaining_secs_to_wait) + " larger than " + print_duration(self.__program_start_in_relative_sec_max))
 
             # start in a delayed manner
@@ -507,8 +507,8 @@ class FinishInAppliance(Appliance):
         if self.state == self.STATE_STARTABLE:
             program_duration_sec = self.__program_duration_sec()
             remaining_secs_to_finish = self.__compute_remaining_secs_to_finish(start_date, program_duration_sec)
-            if remaining_secs_to_finish >= 24*60*60:
-                raise Exception("remaining seconds to finished " + str(remaining_secs_to_finish) + " larger than 24h")
+            if remaining_secs_to_finish >= self.__program_finish_in_relative_max_sec:
+                raise Exception("remaining seconds to finished " + str(remaining_secs_to_finish) + " larger than " + print_duration(self.__program_finish_in_relative_max_sec))
             else:
                 logging.info("remaining seconds to finished " + str(remaining_secs_to_finish) + " (" + print_duration(remaining_secs_to_finish) + ") computed for " + self.name + " " + self.program_selected + " (end time " + (datetime.fromisoformat(start_date) + timedelta(seconds=program_duration_sec)).strftime("%H:%M") + " = start time " + datetime.fromisoformat(start_date).strftime("%H:%M") + " + " + print_duration(program_duration_sec) + " program duration)")
                 try:
