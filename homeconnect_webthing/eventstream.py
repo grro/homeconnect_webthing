@@ -1,6 +1,5 @@
 import logging
 import requests
-import traceback
 import sseclient
 from abc import ABC, abstractmethod
 from time import sleep

@@ -277,9 +277,13 @@ class Appliance(EventListener):
                     raise OfflineException()
             raise Exception("error occurred by calling GET " + uri + " Got " + str(response.status_code) + " " + response.text)
 
-    def _perform_put(self, path:str, data: str, max_trials: int = 3, current_trial: int = 1):
+    def _perform_put(self, path:str, data: str, max_trials: int = 3, current_trial: int = 1, verbose: bool = False):
         uri = self._device_uri + path
+        if verbose:
+            logging.info("PUT " + uri + "\r\n" + json.dumps(data, indent=2))
         response = requests.put(uri, data=data, headers={"Content-Type": "application/json", "Authorization": "Bearer " + self._auth.access_token}, timeout=5000)
+        if verbose:
+            logging.info(str(response.status_code) + "\r\n" + response.text)
         if not is_success(response.status_code):
             logging.warning("error occurred by calling PUT (" + str(current_trial) + ". trial) " + uri + " " + data)
             logging.warning("got " + str(response.status_code) + " " + str(response.text))
@@ -418,6 +422,35 @@ class Dishwasher(Appliance):
             self._notify_listeners()
 
 
+class FinishDate:
+
+    def __init__(self, start_date: str, program_duration_sec: int, remaining_secs_to_finish: int):
+        self.start_date = start_date
+        self.program_duration_sec = program_duration_sec
+        self.remaining_secs_to_finish = remaining_secs_to_finish
+
+    @staticmethod
+    def __compute_remaining_secs_to_finish(start_date: str, duration_sec: int, program_finish_in_relative_stepsize_sec: int) -> int:
+        remaining_secs_to_finish = int((datetime.fromisoformat(start_date) - datetime.now()).total_seconds()) + duration_sec
+        if remaining_secs_to_finish < 0:
+            logging.info("remaining_secs_to_finish is < 0. set it with 0")
+            remaining_secs_to_finish = 0
+        if remaining_secs_to_finish > 0 and program_finish_in_relative_stepsize_sec > 0:
+            remaining_secs_to_finish = int(remaining_secs_to_finish / program_finish_in_relative_stepsize_sec) * program_finish_in_relative_stepsize_sec
+        return remaining_secs_to_finish
+
+    @staticmethod
+    def create(start_date: str, program_duration_sec: int, program_finish_in_relative_stepsize_sec: int, program_finish_in_relative_max_sec: int):
+        remaining_secs_to_finish = FinishDate.__compute_remaining_secs_to_finish(start_date, program_duration_sec, program_finish_in_relative_stepsize_sec)
+        return FinishDate(start_date, program_duration_sec, remaining_secs_to_finish)
+
+    def __str__(self):
+        return "remaining seconds to finished " + str(self.remaining_secs_to_finish) + " (" + print_duration(self.remaining_secs_to_finish) + "). End time " + (datetime.fromisoformat(self.start_date) + timedelta(seconds=self.program_duration_sec)).strftime("%H:%M") + " (= start time " + datetime.fromisoformat(self.start_date).strftime("%H:%M") + " + " + print_duration(self.program_duration_sec) + " program duration)"
+
+    def __repr__(self):
+        return self.__str__()
+
+
 class FinishInAppliance(Appliance):
 
     def __init__(self, device_uri: str, auth: Auth, name: str, device_type: str, haid: str, brand: str, vib: str, enumber: str):
@@ -487,15 +520,6 @@ class FinishInAppliance(Appliance):
         else:
             return duration_sec
 
-    def __compute_remaining_secs_to_finish(self, start_date: str, duration_sec: int) -> int:
-        remaining_secs_to_finish = int((datetime.fromisoformat(start_date) - datetime.now()).total_seconds()) + duration_sec
-        if remaining_secs_to_finish < 0:
-            logging.info("remaining_secs_to_finish is < 0. set it with 0")
-            remaining_secs_to_finish = 0
-        if remaining_secs_to_finish > 0 and self.__program_finish_in_relative_stepsize_sec > 0:
-            remaining_secs_to_finish = int(remaining_secs_to_finish / self.__program_finish_in_relative_stepsize_sec) * self.__program_finish_in_relative_stepsize_sec
-        return remaining_secs_to_finish
-
     def write_start_date(self, start_date: str):
         logging.info("starting device at " + start_date)
 
@@ -506,24 +530,23 @@ class FinishInAppliance(Appliance):
         # when startable
         if self.state == self.STATE_STARTABLE:
             program_duration_sec = self.__program_duration_sec()
-            remaining_secs_to_finish = self.__compute_remaining_secs_to_finish(start_date, program_duration_sec)
-            if remaining_secs_to_finish >= self.__program_finish_in_relative_max_sec:
-                logging.warning("remaining seconds to finished " + print_duration(remaining_secs_to_finish) + " is larger than max supported value of " + print_duration(self.__program_finish_in_relative_max_sec) + ". Ignore setting start date")
+            finish_date = FinishDate.create(start_date, program_duration_sec, self.__program_finish_in_relative_stepsize_sec, self.__program_finish_in_relative_max_sec)
+            if finish_date.remaining_secs_to_finish >= self.__program_finish_in_relative_max_sec:
+                logging.warning("remaining seconds to finished " + print_duration(finish_date.remaining_secs_to_finish) + " is larger than max supported value of " + print_duration(self.__program_finish_in_relative_max_sec) + ". Ignore setting start date")
             else:
-                logging.info("remaining seconds to finished " + str(remaining_secs_to_finish) + " (" + print_duration(remaining_secs_to_finish) + ") computed for " + self.name + " " + self.program_selected + " (end time " + (datetime.fromisoformat(start_date) + timedelta(seconds=program_duration_sec)).strftime("%H:%M") + " = start time " + datetime.fromisoformat(start_date).strftime("%H:%M") + " + " + print_duration(program_duration_sec) + " program duration)")
                 try:
                     data = {
                         "data": {
                             "key": self._program_selected,
                             "options": [{
                                 "key": "BSH.Common.Option.FinishInRelative",
-                                "value": remaining_secs_to_finish,
+                                "value": finish_date.remaining_secs_to_finish,
                                 "unit": "seconds"
                             }]
                         }
                     }
-                    self._perform_put("/programs/active", json.dumps(data, indent=2), max_trials=3)
-                    logging.info(self.name + " program " + self.program_selected + " starts at " + start_date + " (duration " + str(round(program_duration_sec/(60*60), 1)) + " h)")
+                    self._perform_put("/programs/active", json.dumps(data, indent=2), max_trials=3, verbose=True)
+                    logging.info(self.name + " program " + self.program_selected + " starts at " + start_date + " -> " + str(finish_date))
                 except Exception as e:
                     logging.warning("error occurred by starting " + self.name + " with program " + self.program_selected + " at " + start_date + " (duration: " + str(round(program_duration_sec/(60*60), 1)) + " h) " + str(e))
 
