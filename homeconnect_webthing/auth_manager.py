@@ -65,19 +65,18 @@ class AuthRequestHandler(BaseHTTPRequestHandler):
         if path.path.startswith("/oauth"):
             if Session.from_headers(self.headers).value == self.server.handler.session:
                 params = parse_qs(path.query)
-                authorization_code = params['code'][0]
                 state = params['state'][0]
-
-                auth: Auth = self.server.handler.token(state, authorization_code)
-
-                self.send_response(200)
-                self.send_header("Content-type", "text/html")
-                self.end_headers()
-                page = page_template.substitute(refresh_token=auth.refresh_token, client_secret=auth.client_secret).encode("UTF-8")
-                self.wfile.write(page)
-                self.wfile.close()
-            else:
-                self.send_response(400)
+                if state == self.server.handler.state:
+                    authorization_code = params['code'][0]
+                    auth: Auth = self.server.handler.token(authorization_code)
+                    self.send_response(200)
+                    self.send_header("Content-type", "text/html")
+                    self.end_headers()
+                    page = page_template.substitute(refresh_token=auth.refresh_token, client_secret=auth.client_secret).encode("UTF-8")
+                    self.wfile.write(page)
+                    self.wfile.close()
+                    return
+            self.send_response(400)
         else:
             authorize_uri = Auth.URI + "/oauth/authorize?response_type=code&client_id=" + self.server.handler.client_id + "&scope=" + self.server.handler.scope + "&state=" + self.server.handler.state
             self.send_response(302)
@@ -133,19 +132,16 @@ class Authorization:
                 sleep(1)
         return self.auth
 
-    def token(self, state: str, authorization_code: List[str]) -> Auth:
-        if self.state == state:
-            data = {"client_id": self.client_id,
-                    "client_secret": self.client_secret,
-                    "grant_type": "authorization_code",
-                    "code": authorization_code}
-            response = requests.post(Auth.URI + '/oauth/token', data=data)
+    def token(self, authorization_code: List[str]) -> Auth:
+        data = {"client_id": self.client_id,
+                "client_secret": self.client_secret,
+                "grant_type": "authorization_code",
+                "code": authorization_code}
+        response = requests.post(Auth.URI + '/oauth/token', data=data)
 
-            data = response.json()
-            refresh_token = data['refresh_token']
-            access_token = data['access_token']
-            self.auth = Auth(refresh_token, self.client_secret)
-            self.redirect_server.stop()
-            return self.auth
-        else:
-            return None
+        data = response.json()
+        refresh_token = data['refresh_token']
+        access_token = data['access_token']
+        self.auth = Auth(refresh_token, self.client_secret)
+        self.redirect_server.stop()
+        return self.auth
