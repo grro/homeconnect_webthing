@@ -122,13 +122,15 @@ class Authorization:
         self.redirect_server = AuthServer(self, redirect_host, redirect_port)
         self.redirect_server.start()
 
-    def perform(self) -> Auth:
-        webbrowser.open(self.start_uri)
+    @staticmethod
+    def perform(client_id: str, client_secret:str, scope: str, redirect_host: str = "localhost", redirect_port: int = 9855) -> Auth:
+        authorization = Authorization(client_id, client_secret, scope, redirect_host, redirect_port)
+        webbrowser.open(authorization.start_uri)
 
         for i in range(0, 60):
-            if self.auth is None:
+            if authorization.auth is None:
                 sleep(1)
-        return self.auth
+        return authorization.auth
 
     def token(self, authorization_code: List[str]) -> Auth:
         data = {"client_id": self.client_id,
@@ -147,5 +149,5 @@ class Authorization:
 
 
 # example
-# Authorization(client_id='7565664....', client_secret='8C77B22....', scope="IdentifyAppliance%20Dishwasher%20Dryer%20Washer").perform()
+# Authorization.perfrom(client_id='7565664....', client_secret='8C77B22....', scope="IdentifyAppliance%20Dishwasher%20Dryer%20Washer")
 
