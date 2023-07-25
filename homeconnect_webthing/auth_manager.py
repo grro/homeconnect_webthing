@@ -149,5 +149,5 @@ class Authorization:
 
 
 # example
-# Authorization.perfrom(client_id='7565664....', client_secret='8C77B22....', scope="IdentifyAppliance%20Dishwasher%20Dryer%20Washer")
+# Authorization.perform(client_id='7565664....', client_secret='8C77B22....', scope="IdentifyAppliance%20Dishwasher%20Dryer%20Washer")
 
