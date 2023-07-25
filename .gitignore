@@ -132,9 +132,9 @@ dmypy.json
 /.idea/vcs.xml
 /homeconnect_webthing/homeconnect_oauth.txt
 /homeconnect_oauth.txt
-/homeconnect_webthing/deleteme.py
+/test/deleteme.py
 /.idea/workspace.xml
-/homeconnect_webthing/deleteme_auth.py
+/test/deleteme_auth.py
 /homeconnect_webthing/deleteme2.py
 /requirements.txt
 /homeconnect_webthing/delteme.txt
