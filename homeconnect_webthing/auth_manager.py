@@ -111,8 +111,6 @@ class AuthServer(HTTPServer):
 
 class Authorization:
 
-    URI = "https://api.home-connect.com/security"
-
     def __init__(self, client_id: str, client_secret:str, scope: str, redirect_host: str = "localhost", redirect_port: int = 9855):
         self.state = str(uuid.uuid4())
         self.session = str(uuid.uuid4())
