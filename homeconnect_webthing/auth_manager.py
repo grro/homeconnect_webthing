@@ -5,6 +5,7 @@ from threading import Thread
 from time import sleep
 from string import Template
 from http.server import HTTPServer, BaseHTTPRequestHandler
+from http.cookies import SimpleCookie
 from homeconnect_webthing.auth import Auth
 from urllib.parse import urlparse, parse_qs
 from typing import List
@@ -30,28 +31,68 @@ page_template = Template('''
 ''')
 
 
-class RedirectRequestHandler(BaseHTTPRequestHandler):
+
+class Session:
+
+    def __init__(self, cookie: SimpleCookie):
+        self.cookie = cookie
+
+    @property
+    def value(self):
+        return self.cookie['SESSION'].value
+
+    @staticmethod
+    def create(session : str):
+        cookie = SimpleCookie()
+        cookie['SESSION'] =  session
+        cookie['SESSION']['path'] = '/'
+        cookie['SESSION']['max-age'] = str(60*60*24*2)
+        cookie['SESSION']['secure'] = True
+        return Session(cookie)
+
+    @staticmethod
+    def from_headers(headers):
+        cookie_header = headers.get('Cookie')
+        cookie = SimpleCookie(cookie_header)
+        return Session(cookie)
+
+
+
+class AuthRequestHandler(BaseHTTPRequestHandler):
 
     def do_GET(self) :
-        params = parse_qs(urlparse(self.path).query)
-        authorization_code = params['code'][0]
-        state = params['state'][0]
+        path = urlparse(self.path)
 
-        auth: Auth = self.server.handler.token(state, authorization_code)
+        if path.path.startswith("/oauth"):
+            if Session.from_headers(self.headers).value == self.server.handler.session:
+                params = parse_qs(path.query)
+                authorization_code = params['code'][0]
+                state = params['state'][0]
 
-        self.send_response(200)
-        self.send_header("Content-type", "text/html")
-        self.end_headers()
-        page = page_template.substitute(refresh_token=auth.refresh_token, client_secret=auth.client_secret).encode("UTF-8")
-        self.wfile.write(page)
-        self.wfile.close()
+                auth: Auth = self.server.handler.token(state, authorization_code)
+
+                self.send_response(200)
+                self.send_header("Content-type", "text/html")
+                self.end_headers()
+                page = page_template.substitute(refresh_token=auth.refresh_token, client_secret=auth.client_secret).encode("UTF-8")
+                self.wfile.write(page)
+                self.wfile.close()
+            else:
+                self.send_response(400)
+        else:
+            authorize_uri = Auth.URI + "/oauth/authorize?response_type=code&client_id=" + self.server.handler.client_id + "&scope=" + self.server.handler.scope + "&state=" + self.server.handler.state
+            self.send_response(302)
+            self.send_header('Location', authorize_uri)
+            session = Session.create(self.server.handler.session)
+            self.send_header("Set-Cookie", session.cookie.output(header='', sep=''))
+            self.end_headers()
 
 
-class RedirectServer(HTTPServer):
+class AuthServer(HTTPServer):
 
     def __init__(self, handler, host: str, port: int):
         self.handler = handler
-        HTTPServer.__init__(self, (host, port), RedirectRequestHandler)
+        HTTPServer.__init__(self, (host, port), AuthRequestHandler)
 
     def run(self):
         try:
@@ -69,17 +110,20 @@ class RedirectServer(HTTPServer):
             pass
 
 
+
 class Authorization:
 
     URI = "https://api.home-connect.com/security"
 
-    def __init__(self, client_id: str, client_secret:str, scope: str, redirect_host: str = "0.0.0.0", reidrect_port: int = 9855):
+    def __init__(self, client_id: str, client_secret:str, scope: str, redirect_host: str = "localhost", redirect_port: int = 9855):
         self.state = str(uuid.uuid4())
+        self.session = str(uuid.uuid4())
         self.client_id = client_id
         self.client_secret = client_secret
         self.scope = scope
         self.auth = None
-        self.redirect_server = RedirectServer(self, redirect_host, reidrect_port)
+        self.redirect_uri = "http://" + redirect_host + ":" + str(redirect_port)
+        self.redirect_server = AuthServer(self, redirect_host, redirect_port)
         self.redirect_server.start()
 
     def perform(self) -> Auth:
@@ -88,8 +132,7 @@ class Authorization:
         return self.auth
 
     def authorize(self):
-        uri = Auth.URI + "/oauth/authorize?response_type=code&client_id=" + self.client_id + "&scope=" + self.scope + "&state=" + self.state
-        webbrowser.open(uri)
+        webbrowser.open(self.redirect_uri)
 
     def token(self, state: str, authorization_code: List[str]) -> Auth:
         if self.state == state:
@@ -112,3 +155,4 @@ class Authorization:
         for i in range(0, 60):
             if self.auth is None:
                 sleep(1)
+
