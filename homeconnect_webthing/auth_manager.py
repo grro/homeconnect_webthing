@@ -57,7 +57,6 @@ class Session:
         return Session(cookie)
 
 
-
 class AuthRequestHandler(BaseHTTPRequestHandler):
 
     def do_GET(self) :
@@ -122,17 +121,17 @@ class Authorization:
         self.client_secret = client_secret
         self.scope = scope
         self.auth = None
-        self.redirect_uri = "http://" + redirect_host + ":" + str(redirect_port)
+        self.start_uri = "http://" + redirect_host + ":" + str(redirect_port)
         self.redirect_server = AuthServer(self, redirect_host, redirect_port)
         self.redirect_server.start()
 
     def perform(self) -> Auth:
-        self.authorize()
-        self.wait_until_finished()
-        return self.auth
+        webbrowser.open(self.start_uri)
 
-    def authorize(self):
-        webbrowser.open(self.redirect_uri)
+        for i in range(0, 60):
+            if self.auth is None:
+                sleep(1)
+        return self.auth
 
     def token(self, state: str, authorization_code: List[str]) -> Auth:
         if self.state == state:
@@ -150,9 +149,3 @@ class Authorization:
             return self.auth
         else:
             return None
-
-    def wait_until_finished(self):
-        for i in range(0, 60):
-            if self.auth is None:
-                sleep(1)
-
