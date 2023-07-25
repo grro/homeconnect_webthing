@@ -143,3 +143,9 @@ class Authorization:
         self.auth = Auth(refresh_token, self.client_secret)
         self.redirect_server.stop()
         return self.auth
+
+
+
+# example
+# Authorization(client_id='7565664....', client_secret='8C77B22....', scope="IdentifyAppliance%20Dishwasher%20Dryer%20Washer").perform()
+
