@@ -69,9 +69,11 @@ class ReconnectingEventStream:
             except Exception as e:
                 logging.warning("error has been occurred for event stream " + self.uri + " " + str(e))
                 if num_trials < 3:
-                    wait_time_sec = 5
+                    wait_time_sec = 10
                 elif num_trials < 5:
-                    wait_time_sec = 30
+                    wait_time_sec = 60
+                elif num_trials < 10:
+                    wait_time_sec = 15*60
                 else:
                     wait_time_sec = 60*60
                 logging.info("try reconnect in " + print_duration(wait_time_sec) + " sec...")
