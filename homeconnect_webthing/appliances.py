@@ -106,14 +106,6 @@ class Appliance(EventListener):
             logging.info(self.name + " new state: " + new_state + " (previous: " + self.state + ")")
             self.__db.put("state", new_state)
 
-    @property
-    def __previous_run_completed(self) -> bool:
-        return self.__db.get("previous_program_completed", True)
-
-    @__previous_run_completed.setter
-    def __previous_run_completed(self, completed: bool):
-        self.__db.put("previous_program_completed", completed)
-
     def __update_state(self):
         power = self.power.lower() == self.ON.lower()
         operation = self.operation.lower()
@@ -123,13 +115,11 @@ class Appliance(EventListener):
         elif power and operation == 'run':
             self.state = self.STATE_RUNNING
             self.__previous_run_completed = False
-        elif power and operation == 'ready' and self.door.lower() == "closed" and self.__previous_run_completed and self.remote_start_allowed and self.program_remote_control_active:
+        elif power and operation == 'ready' and self.door.lower() == "closed" and self.remote_start_allowed and self.program_remote_control_active:
             self.state = self.STATE_STARTABLE
         elif power and operation == 'finished':
             self.state = self.STATE_FINISHED
         else:
-            if self.door.lower() == 'open' or not power:
-                self.__previous_run_completed = True
             if power and self.door.lower() == 'closed':
                 self.state = self.STATE_READY
             elif power:
