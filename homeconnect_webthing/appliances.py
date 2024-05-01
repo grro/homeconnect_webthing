@@ -273,7 +273,7 @@ class Appliance(EventListener):
             logging.info("PUT " + uri + "\r\n" + json.dumps(data, indent=2))
         response = requests.put(uri, data=data, headers={"Content-Type": "application/json", "Authorization": "Bearer " + self._auth.access_token}, timeout=5000)
         if verbose:
-            logging.info(str(response.status_code) + "\r\n" + response.text)
+            logging.info("response code " + str(response.status_code) + "\r\n" + response.text)
         if not is_success(response.status_code):
             logging.warning("error occurred by calling PUT (" + str(current_trial) + ". trial) " + uri + " " + data)
             logging.warning("got " + str(response.status_code) + " " + str(response.text))
@@ -420,6 +420,11 @@ class FinishDate:
         self.remaining_secs_to_finish = remaining_secs_to_finish
 
     @staticmethod
+    def create(start_date: str, program_duration_sec: int, program_finish_in_relative_stepsize_sec: int, program_finish_in_relative_max_sec: int):
+        remaining_secs_to_finish = FinishDate.__compute_remaining_secs_to_finish(start_date, program_duration_sec, program_finish_in_relative_stepsize_sec)
+        return FinishDate(start_date, program_duration_sec, remaining_secs_to_finish)
+
+    @staticmethod
     def __compute_remaining_secs_to_finish(start_date: str, duration_sec: int, program_finish_in_relative_stepsize_sec: int) -> int:
         remaining_secs_to_finish = int((datetime.fromisoformat(start_date) - datetime.now()).total_seconds()) + duration_sec
         if remaining_secs_to_finish < 0:
@@ -428,11 +433,6 @@ class FinishDate:
         if remaining_secs_to_finish > 0 and program_finish_in_relative_stepsize_sec > 0:
             remaining_secs_to_finish = int(remaining_secs_to_finish / program_finish_in_relative_stepsize_sec) * program_finish_in_relative_stepsize_sec
         return remaining_secs_to_finish
-
-    @staticmethod
-    def create(start_date: str, program_duration_sec: int, program_finish_in_relative_stepsize_sec: int, program_finish_in_relative_max_sec: int):
-        remaining_secs_to_finish = FinishDate.__compute_remaining_secs_to_finish(start_date, program_duration_sec, program_finish_in_relative_stepsize_sec)
-        return FinishDate(start_date, program_duration_sec, remaining_secs_to_finish)
 
     def __str__(self):
         return "remaining seconds to finished " + str(self.remaining_secs_to_finish) + " (" + print_duration(self.remaining_secs_to_finish) + "). End time " + (datetime.fromisoformat(self.start_date) + timedelta(seconds=self.program_duration_sec)).strftime("%H:%M") + " (= start time " + datetime.fromisoformat(self.start_date).strftime("%H:%M") + " + " + print_duration(self.program_duration_sec) + " program duration)"
@@ -520,17 +520,24 @@ class FinishInAppliance(Appliance):
         # when startable
         if self.state == self.STATE_STARTABLE:
             program_duration_sec = self.__program_duration_sec()
+            logging.info("program duration " + print_duration(program_duration_sec))
             finish_date = FinishDate.create(start_date, program_duration_sec, self.__program_finish_in_relative_stepsize_sec, self.__program_finish_in_relative_max_sec)
+            logging.info("finish date " + str(finish_date))
             if finish_date.remaining_secs_to_finish >= self.__program_finish_in_relative_max_sec:
                 logging.warning("remaining seconds to finished " + print_duration(finish_date.remaining_secs_to_finish) + " is larger than max supported value of " + print_duration(self.__program_finish_in_relative_max_sec) + ". Ignore setting start date")
             else:
+                # bug fix FinishInRelative seems to be interpreted as start in relativ?!
+                finish_in_relative = finish_date.remaining_secs_to_finish - program_duration_sec
+                if finish_in_relative < 60:
+                    logging.info("finish_in_relative " + str(finish_in_relative) + " is < 60 sec. using finish_in_relative=60")
+                    finish_in_relative = 60
                 try:
                     data = {
                         "data": {
                             "key": self._program_selected,
                             "options": [{
                                 "key": "BSH.Common.Option.FinishInRelative",
-                                "value": finish_date.remaining_secs_to_finish,
+                                "value": finish_in_relative,
                                 "unit": "seconds"
                             }]
                         }
