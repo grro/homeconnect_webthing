@@ -1,8 +1,9 @@
 from webthing import (MultipleThings, Property, Thing, Value, WebThingServer)
+import sys
 import logging
 import tornado.ioloop
-from homeconnect_webthing.appliances import Appliance, Dishwasher, Dryer, Washer
-from homeconnect_webthing.homeconnect import HomeConnect
+from appliances import Appliance, Dishwasher, Dryer, Washer
+from homeconnect import HomeConnect
 
 
 
@@ -230,11 +231,11 @@ class DishwasherThing(ApplianceThing):
     def __init__(self, description: str, dishwasher: Dishwasher):
         super().__init__(description, dishwasher)
 
-        self.start_date = Value(dishwasher.read_start_date(), dishwasher.write_start_date)
+        self.start_date_utc = Value(dishwasher.read_start_date_utc(), dishwasher.write_start_date_utc)
         self.add_property(
             Property(self,
-                     'program_start_date',
-                     self.start_date,
+                     'program_start_date_utc',
+                     self.start_date_utc,
                      metadata={
                          'title': 'Start date',
                          "type": "string",
@@ -309,6 +310,7 @@ class DishwasherThing(ApplianceThing):
                      'program_remaining_time',
                      self.program_remaining_time,
                      metadata={
+
                          'title': 'Remaining time',
                          "type": "int",
                          'description': 'The remaining time in sec',
@@ -317,7 +319,7 @@ class DishwasherThing(ApplianceThing):
 
     def _on_value_changed(self, dishwasher: Dishwasher):
         super()._on_value_changed(dishwasher)
-        self.start_date.notify_of_external_update(dishwasher.read_start_date())
+        self.start_date_utc.notify_of_external_update(dishwasher.read_start_date_utc())
         self.program_vario_speed_plus.notify_of_external_update(dishwasher.program_vario_speed_plus)
         self.program_hygiene_plus.notify_of_external_update(dishwasher.program_hygiene_plus)
         self.program_extra_try.notify_of_external_update(dishwasher.program_extra_try)
@@ -331,11 +333,11 @@ class DryerThing(ApplianceThing):
     def __init__(self, description: str, dryer: Dryer):
         super().__init__(description, dryer)
 
-        self.start_date = Value(dryer.read_start_date(), dryer.write_start_date)
+        self.start_date_utc = Value(dryer.read_start_date_utc(), dryer.write_start_date_utc)
         self.add_property(
             Property(self,
-                     'program_start_date',
-                     self.start_date,
+                     'program_start_date_utc',
+                     self.start_date_utc,
                      metadata={
                          'title': 'Start date',
                          "type": "string",
@@ -406,7 +408,7 @@ class DryerThing(ApplianceThing):
 
     def _on_value_changed(self, dryer: Dryer):
         super()._on_value_changed(dryer)
-        self.start_date.notify_of_external_update(dryer.read_start_date())
+        self.start_date_utc.notify_of_external_update(dryer.read_start_date_utc())
         self.child_lock.notify_of_external_update(dryer.child_lock)
         self.program_gentle.notify_of_external_update(dryer.program_gentle)
         self.program_wrinkle_guard.notify_of_external_update(dryer.program_wrinkle_guard)
@@ -419,11 +421,11 @@ class WasherThing(ApplianceThing):
     def __init__(self, description: str, washer: Washer):
         super().__init__(description, washer)
 
-        self.start_date = Value(washer.read_start_date(), washer.write_start_date)
+        self.start_date_utc = Value(washer.read_start_date_utc(), washer.write_start_date_utc)
         self.add_property(
             Property(self,
-                     'program_start_date',
-                     self.start_date,
+                     'program_start_date_utc',
+                     self.start_date_utc,
                      metadata={
                          'title': 'Start date',
                          "type": "string",
@@ -602,7 +604,7 @@ class WasherThing(ApplianceThing):
 
     def _on_value_changed(self, washer: Washer):
         super()._on_value_changed(washer)
-        self.start_date.notify_of_external_update(washer.read_start_date())
+        self.start_date_utc.notify_of_external_update(washer.read_start_date_utc())
         self.spin_speed.notify_of_external_update(washer.spin_speed)
         self.idos1_baselevel.notify_of_external_update(washer.idos1_baselevel)
         self.idos2_baselevel.notify_of_external_update(washer.idos2_baselevel)
@@ -617,6 +619,7 @@ class WasherThing(ApplianceThing):
         self.rinse_plus1.notify_of_external_update(washer.rinse_plus1)
         self.speed_perfect.notify_of_external_update(washer.speed_perfect)
         self.program_duration.notify_of_external_update(washer.program_duration_hours)
+
 
 def run_server( description: str, port: int, refresh_token: str, client_secret: str):
     homeappliances = []
@@ -638,3 +641,16 @@ def run_server( description: str, port: int, refresh_token: str, client_secret: 
         server.stop()
         logging.info('done')
 
+
+
+if __name__ == '__main__':
+    logging.basicConfig(format='%(asctime)s %(name)-20s: %(levelname)-8s %(message)s', level=logging.INFO, datefmt='%Y-%m-%d %H:%M:%S')
+    logging.getLogger('tornado.access').setLevel(logging.ERROR)
+    logging.getLogger('urllib3.connectionpool').setLevel(logging.WARNING)
+    run_server("description", int(sys.argv[1]), sys.argv[2], sys.argv[3])
+
+
+
+
+# test curl
+# curl -X PUT -d '{"program_start_date_utc": "2024-05-15T14:20"}' http://localhost:8832/0/properties/program_start_date_utc

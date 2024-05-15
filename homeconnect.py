@@ -3,10 +3,10 @@ import requests
 from time import sleep
 from threading import Thread
 from typing import List, Optional
-from homeconnect_webthing.auth import Auth
-from homeconnect_webthing.eventstream import EventListener, ReconnectingEventStream
-from homeconnect_webthing.appliances import Appliance, Dishwasher, Dryer, Washer
-from homeconnect_webthing.utils import is_success
+from auth import Auth
+from eventstream import EventListener, ReconnectingEventStream
+from appliances import Appliance, Dishwasher, Dryer, Washer
+from utils import is_success
 
 
 

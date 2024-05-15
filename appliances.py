@@ -1,14 +1,18 @@
 import logging
 import requests
 import json
+import pytz
 from time import sleep
 from typing import List, Dict, Any
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from redzoo.database.simple import SimpleDB
-from homeconnect_webthing.auth import Auth
-from homeconnect_webthing.eventstream import EventListener
-from homeconnect_webthing.utils import print_duration, is_success
+from auth import Auth
+from eventstream import EventListener
+from utils import print_duration, is_success
 
+
+
+BERLIN_TZ = pytz.timezone('Europe/Berlin')
 
 
 class OfflineException(Exception):
@@ -254,7 +258,6 @@ class Appliance(EventListener):
             else:
                 raise e
 
-
     def _perform_get(self, path:str) -> Dict[str, Any]:
         uri = self._device_uri + path
         response = requests.get(uri, headers={"Authorization": "Bearer " + self._auth.access_token}, timeout=5000)
@@ -347,22 +350,25 @@ class Dishwasher(Appliance):
             return super()._on_value_changed(key, change, source)
         return True
 
-    def read_start_date(self) -> str:
-        start_date = datetime.now() + timedelta(seconds=self.__program_start_in_relative_sec)
-        if start_date > datetime.now():
+    def read_start_date_utc(self) -> str:
+        start_date = datetime.utcnow() + timedelta(seconds=self.__program_start_in_relative_sec)
+        if start_date > datetime.utcnow():
             return start_date.strftime("%Y-%m-%dT%H:%M")
         else:
             return ""
 
-    def write_start_date(self, start_date: str):
+    def write_start_date_utc(self, start_date: str):
+        start_date_utc = datetime.fromisoformat(start_date)
+        if start_date_utc.tzinfo is None:
+            start_date_utc = start_date_utc.replace(tzinfo=timezone.utc)
+
         self._reload_status_and_settings()
         self._reload_selected_program()  # ensure that selected program is loaded
 
         if len(self._program_selected) == 0:
             logging.warning("ignoring start command. No program selected")
-
         else:
-            remaining_secs_to_wait = int((datetime.fromisoformat(start_date) - datetime.now()).total_seconds())
+            remaining_secs_to_wait = int((start_date_utc - datetime.now(tz=timezone.utc)).total_seconds())
             if remaining_secs_to_wait < 0:
                 remaining_secs_to_wait = 0
             if remaining_secs_to_wait >= self.__program_start_in_relative_sec_max:
@@ -370,6 +376,7 @@ class Dishwasher(Appliance):
 
             # start in a delayed manner
             if self.state == self.STATE_STARTABLE:
+                logging.info("starting device at " + (datetime.now() + timedelta(seconds=remaining_secs_to_wait)).strftime("%H:%M") + " (start date " + start_date_utc.strftime("%H:%M") + " utc)")
                 try:
                     data = {
                         "data": {
@@ -385,7 +392,8 @@ class Dishwasher(Appliance):
                     self._perform_put("/programs/active", json.dumps(data, indent=2), max_trials=3)
                     logging.info(self.name + " PROGRAMSTRART - program " + self.program_selected +
                                  " starts in " + print_duration(remaining_secs_to_wait) +
-                                 " (duration " + print_duration(self.program_remaining_time_sec) + ")")
+                                 " (start date " + (datetime.now() + timedelta(seconds=remaining_secs_to_wait)).strftime("%Y-%m-%dT%H:%M") +
+                                 " ; duration " + print_duration(self.program_remaining_time_sec) + ")")
                 except Exception as e:
                     logging.warning("error occurred by starting " + self.name + " " + str(e))
 
@@ -412,33 +420,6 @@ class Dishwasher(Appliance):
             self._notify_listeners()
 
 
-class FinishDate:
-
-    def __init__(self, start_date: str, program_duration_sec: int, remaining_secs_to_finish: int):
-        self.start_date = start_date
-        self.program_duration_sec = program_duration_sec
-        self.remaining_secs_to_finish = remaining_secs_to_finish
-
-    @staticmethod
-    def create(start_date: str, program_duration_sec: int, program_finish_in_relative_stepsize_sec: int, program_finish_in_relative_max_sec: int):
-        remaining_secs_to_finish = FinishDate.__compute_remaining_secs_to_finish(start_date, program_duration_sec, program_finish_in_relative_stepsize_sec)
-        return FinishDate(start_date, program_duration_sec, remaining_secs_to_finish)
-
-    @staticmethod
-    def __compute_remaining_secs_to_finish(start_date: str, duration_sec: int, program_finish_in_relative_stepsize_sec: int) -> int:
-        remaining_secs_to_finish = int((datetime.fromisoformat(start_date) - datetime.now()).total_seconds()) + duration_sec
-        if remaining_secs_to_finish < 0:
-            logging.info("remaining_secs_to_finish is < 0. set it with 0")
-            remaining_secs_to_finish = 0
-        if remaining_secs_to_finish > 0 and program_finish_in_relative_stepsize_sec > 0:
-            remaining_secs_to_finish = int(remaining_secs_to_finish / program_finish_in_relative_stepsize_sec) * program_finish_in_relative_stepsize_sec
-        return remaining_secs_to_finish
-
-    def __str__(self):
-        return "remaining seconds to finished " + str(self.remaining_secs_to_finish) + " (" + print_duration(self.remaining_secs_to_finish) + "). End time " + (datetime.fromisoformat(self.start_date) + timedelta(seconds=self.program_duration_sec)).strftime("%H:%M") + " (= start time " + datetime.fromisoformat(self.start_date).strftime("%H:%M") + " + " + print_duration(self.program_duration_sec) + " program duration)"
-
-    def __repr__(self):
-        return self.__str__()
 
 
 class FinishInAppliance(Appliance):
@@ -477,13 +458,6 @@ class FinishInAppliance(Appliance):
             return super()._on_value_changed(key, change, source)
         return True
 
-    def read_start_date(self) -> str:
-        if self.operation.lower() == 'delayedstart' and self._program_finish_in_relative_sec > 0:
-            start_date = datetime.now() + timedelta(seconds=self._program_finish_in_relative_sec) - timedelta(seconds=self.__program_duration_sec())
-            return start_date.strftime("%Y-%m-%dT%H:%M")
-        else:
-            return ""
-
     def _program_fingerprint(self) -> str:
         return self._program_selected
 
@@ -510,8 +484,17 @@ class FinishInAppliance(Appliance):
         else:
             return duration_sec
 
-    def write_start_date(self, start_date: str):
-        logging.info("starting device at " + start_date)
+    def read_start_date_utc(self) -> str:
+        if self.operation.lower() == 'delayedstart' and self._program_finish_in_relative_sec > 0:
+            start_date = datetime.utcnow() + timedelta(seconds=self._program_finish_in_relative_sec) - timedelta(seconds=self.__program_duration_sec())
+            return start_date.strftime("%Y-%m-%dT%H:%M")
+        else:
+            return ""
+
+    def write_start_date_utc(self, start_date: str):
+        start_date_utc = datetime.fromisoformat(start_date)
+        if start_date_utc.tzinfo is None:
+            start_date_utc = start_date_utc.replace(tzinfo=timezone.utc)
 
         # ensure that current settings and selected program is loaded
         self._reload_status_and_settings()
@@ -521,13 +504,21 @@ class FinishInAppliance(Appliance):
         if self.state == self.STATE_STARTABLE:
             program_duration_sec = self.__program_duration_sec()
             logging.info("program duration " + print_duration(program_duration_sec))
-            finish_date = FinishDate.create(start_date, program_duration_sec, self.__program_finish_in_relative_stepsize_sec, self.__program_finish_in_relative_max_sec)
-            logging.info("finish date " + str(finish_date))
-            if finish_date.remaining_secs_to_finish >= self.__program_finish_in_relative_max_sec:
-                logging.warning("remaining seconds to finished " + print_duration(finish_date.remaining_secs_to_finish) + " is larger than max supported value of " + print_duration(self.__program_finish_in_relative_max_sec) + ". Ignore setting start date")
+
+            remaining_secs_to_finish = int((start_date_utc - datetime.now(tz=timezone.utc)).total_seconds()) + program_duration_sec
+            if remaining_secs_to_finish < 0:
+                logging.info("remaining_secs_to_finish is < 0. set it with 0")
+                remaining_secs_to_finish = 0
+            if remaining_secs_to_finish > 0 and self.__program_finish_in_relative_stepsize_sec > 0:
+                remaining_secs_to_finish = int(remaining_secs_to_finish / self.__program_finish_in_relative_stepsize_sec) * self.__program_finish_in_relative_max_sec
+
+            if remaining_secs_to_finish >= self.__program_finish_in_relative_max_sec:
+                logging.warning("remaining seconds to finished " + print_duration(remaining_secs_to_finish) + " is larger than max supported value of " + print_duration(self.__program_finish_in_relative_max_sec) + ". Ignore setting start date")
             else:
-                # bug fix FinishInRelative seems to be interpreted as start in relativ?!
-                finish_in_relative = finish_date.remaining_secs_to_finish - program_duration_sec
+                remaining_secs_to_wait = remaining_secs_to_finish - program_duration_sec
+                logging.info("starting device at " + (datetime.now() + timedelta(seconds=remaining_secs_to_wait)).strftime("%H:%M") + " (start date " + start_date_utc.strftime("%H:%M") + " utc)")
+
+                finish_in_relative = remaining_secs_to_wait # bug fix FinishInRelative seems to be interpreted as start in relativ?!
                 if finish_in_relative < 60:
                     logging.info("finish_in_relative " + str(finish_in_relative) + " is < 60 sec. using finish_in_relative=60")
                     finish_in_relative = 60
@@ -543,7 +534,11 @@ class FinishInAppliance(Appliance):
                         }
                     }
                     self._perform_put("/programs/active", json.dumps(data, indent=2), max_trials=3, verbose=True)
-                    logging.info(self.name + " program " + self.program_selected + " starts at " + start_date + " -> " + str(finish_date))
+                    logging.info(self.name + " PROGRAMSTRART - program " + self.program_selected +
+                                 " starts in " + print_duration(remaining_secs_to_wait) +
+                                 " (start date " + (datetime.now() + timedelta(seconds=remaining_secs_to_wait)).strftime("%Y-%m-%dT%H:%M") +
+                                 " ; duration " + print_duration(self.program_remaining_time_sec) + ")")
+
                 except Exception as e:
                     logging.warning("error occurred by starting " + self.name + " with program " + self.program_selected + " at " + start_date + " (duration: " + str(round(program_duration_sec/(60*60), 1)) + " h) " + str(e))
 

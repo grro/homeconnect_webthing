@@ -6,7 +6,7 @@ from time import sleep
 from string import Template
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from http.cookies import SimpleCookie
-from homeconnect_webthing.auth import Auth
+from auth import Auth
 from urllib.parse import urlparse, parse_qs
 from typing import List
 

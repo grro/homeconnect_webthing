@@ -5,8 +5,8 @@ from abc import ABC, abstractmethod
 from time import sleep
 from threading import Thread
 from datetime import datetime, timedelta
-from homeconnect_webthing.auth import Auth
-from homeconnect_webthing.utils import print_duration
+from auth import Auth
+from utils import print_duration
 
 
 
