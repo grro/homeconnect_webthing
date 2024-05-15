@@ -29,22 +29,4 @@ curl http://192.168.0.23:8744/0/properties
 }
 ```
 
-To install this software, you can use the [PIP](https://realpython.com/what-is-pip/) package manager as shown below
 
-**PIP approach**
-```
-sudo pip3 install homeconnect_webthing
-```
-
-After this installation, you can use the Webthing http endpoint in your Python code or from the command line with
-```
-sudo homeconnect --command listen --port 8744 --refresh_token 9yJ4LXJlZyI6IfVVIiwi...2YXRlIn0= --client_secret FEAE...522BD0 
-```
-Here the webthing API is bound to the local port 8744. Also, refresh_token and client_secret must be set.
-Please refer to [HomeConnect Authorization](https://api-docs.home-connect.com/quickstart?#authorization) to obtain your refresh_token and client_secret
-
-As an alternative to the *list* command, you can also use the *register* command to register and start the webthing service as a systemd entity.
-This way, the webthing service is started automatically at boot time. Starting the server manually with the *listen* command is no longer necessary.
-```
-sudo homeconnect --command register --port 8744 --refresh_token 9yJ4LXJlZyI6IfVVIiwi...2YXRlIn0= --client_secret FEAE...522BD0
-```  
