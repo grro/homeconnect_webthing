@@ -376,7 +376,6 @@ class Dishwasher(Appliance):
 
             # start in a delayed manner
             if self.state == self.STATE_STARTABLE:
-                logging.info("starting device at " + (datetime.now() + timedelta(seconds=remaining_secs_to_wait)).strftime("%H:%M") + " (start date " + start_date_utc.strftime("%H:%M") + " utc)")
                 try:
                     data = {
                         "data": {
@@ -392,8 +391,8 @@ class Dishwasher(Appliance):
                     self._perform_put("/programs/active", json.dumps(data, indent=2), max_trials=3)
                     logging.info(self.name + " PROGRAMSTRART - program " + self.program_selected +
                                  " starts in " + print_duration(remaining_secs_to_wait) +
-                                 " (start date " + (datetime.now() + timedelta(seconds=remaining_secs_to_wait)).strftime("%Y-%m-%dT%H:%M") +
-                                 " ; duration " + print_duration(self.program_remaining_time_sec) + ")")
+                                 " (start date " + (datetime.now() + timedelta(seconds=remaining_secs_to_wait)).strftime("%Y-%m-%dT%H:%M") + " utc;" +
+                                 " duration " + print_duration(self.program_remaining_time_sec) + ")")
                 except Exception as e:
                     logging.warning("error occurred by starting " + self.name + " " + str(e))
 
@@ -479,7 +478,7 @@ class FinishInAppliance(Appliance):
         # get duration
         duration_sec = self._durations.get(program_fingerprint, None)
         if duration_sec is None:
-            logging.warning("no duration stored. Using default (key: " + program_fingerprint + " available values: " + ", ".join([key + ": " + str(self._durations.get(key)) for key in self._durations.keys()]) + ")")
+            logging.warning(self.name + " no duration stored. Using default (key: " + program_fingerprint + " available values: " + ", ".join([key + ": " + str(self._durations.get(key)) for key in self._durations.keys()]) + ")")
             return 7222  # 2h
         else:
             return duration_sec
@@ -516,7 +515,6 @@ class FinishInAppliance(Appliance):
                 logging.warning("remaining seconds to finished " + print_duration(remaining_secs_to_finish) + " is larger than max supported value of " + print_duration(self.__program_finish_in_relative_max_sec) + ". Ignore setting start date")
             else:
                 remaining_secs_to_wait = remaining_secs_to_finish - program_duration_sec
-                logging.info("starting device at " + (datetime.now() + timedelta(seconds=remaining_secs_to_wait)).strftime("%H:%M") + " (start date " + start_date_utc.strftime("%H:%M") + " utc)")
 
                 finish_in_relative = remaining_secs_to_wait # bug fix FinishInRelative seems to be interpreted as start in relativ?!
                 if finish_in_relative < 60:
@@ -536,8 +534,8 @@ class FinishInAppliance(Appliance):
                     self._perform_put("/programs/active", json.dumps(data, indent=2), max_trials=3, verbose=True)
                     logging.info(self.name + " PROGRAMSTRART - program " + self.program_selected +
                                  " starts in " + print_duration(remaining_secs_to_wait) +
-                                 " (start date " + (datetime.now() + timedelta(seconds=remaining_secs_to_wait)).strftime("%Y-%m-%dT%H:%M") +
-                                 " ; duration " + print_duration(self.program_remaining_time_sec) + ")")
+                                 " (start date " + (datetime.now() + timedelta(seconds=remaining_secs_to_wait)).strftime("%Y-%m-%dT%H:%M") + " utc;" +
+                                 " duration " + print_duration(self.program_remaining_time_sec) + ")")
 
                 except Exception as e:
                     logging.warning("error occurred by starting " + self.name + " with program " + self.program_selected + " at " + start_date + " (duration: " + str(round(program_duration_sec/(60*60), 1)) + " h) " + str(e))
