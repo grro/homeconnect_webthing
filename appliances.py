@@ -32,7 +32,7 @@ class Appliance(EventListener):
     STATE_OFF = "OFF"
     VALID_STATES = [STATE_READY, STATE_STARTABLE, STATE_DELAYED_STARTED, STATE_RUNNING, STATE_FINISHED, STATE_OFF]
 
-    def __init__(self, device_uri: str, auth: Auth, name: str, device_type: str, haid: str, brand: str, vib: str, enumber: str):
+    def __init__(self, device_uri: str, auth: Auth, name: str, device_type: str, haid: str, brand: str, vib: str, enumber: str, directory: str):
         self._device_uri = device_uri
         self._auth = auth
         self.name = name
@@ -54,7 +54,7 @@ class Appliance(EventListener):
         self._operation = ""
         self.__program_active = ""
         self.child_lock = False
-        self.__db = SimpleDB(haid + '_db')
+        self.__db = SimpleDB(haid + '_db', directory=directory)
         self._reload_status_and_settings()
         self._reload_selected_program(ignore_error=True)
 
@@ -311,7 +311,7 @@ class Appliance(EventListener):
 class Dishwasher(Appliance):
     DeviceType = 'dishwasher'
 
-    def __init__(self, device_uri: str, auth: Auth, name: str, device_type: str, haid: str, brand: str, vib: str, enumber: str):
+    def __init__(self, device_uri: str, auth: Auth, name: str, device_type: str, haid: str, brand: str, vib: str, enumber: str, directory: str):
         self.__program_start_in_relative_sec = 0
         self.__program_start_in_relative_sec_max = 86000
         self.program_extra_try = ""
@@ -319,7 +319,7 @@ class Dishwasher(Appliance):
         self.program_vario_speed_plus = ""
         self.program_energy_forecast_percent = 0
         self.program_water_forecast_percent = 0
-        super().__init__(device_uri, auth, name, device_type, haid, brand, vib, enumber)
+        super().__init__(device_uri, auth, name, device_type, haid, brand, vib, enumber, directory)
 
     def _on_value_changed(self, key: str, change: Dict[str, Any], source: str) -> bool:
         if key == 'BSH.Common.Option.StartInRelative':
@@ -424,12 +424,12 @@ class Dishwasher(Appliance):
 
 class FinishInAppliance(Appliance):
 
-    def __init__(self, device_uri: str, auth: Auth, name: str, device_type: str, haid: str, brand: str, vib: str, enumber: str):
+    def __init__(self, device_uri: str, auth: Auth, name: str, device_type: str, haid: str, brand: str, vib: str, enumber: str, directory: str):
         self._program_finish_in_relative_sec = 0
         self.__program_finish_in_relative_max_sec = 86000
         self.__program_finish_in_relative_stepsize_sec = 60
         self._durations = SimpleDB(haid + '_durations')
-        super().__init__(device_uri, auth, name, device_type, haid, brand, vib, enumber)
+        super().__init__(device_uri, auth, name, device_type, haid, brand, vib, enumber, directory)
 
     def _on_value_changed(self, key: str, change: Dict[str, Any], source: str) -> bool:
         if key == 'BSH.Common.Status.OperationState':
@@ -553,7 +553,7 @@ class FinishInAppliance(Appliance):
 class Washer(FinishInAppliance):
     DeviceType = 'washer'
 
-    def __init__(self, device_uri: str, auth: Auth, name: str, device_type: str, haid: str, brand: str, vib: str, enumber: str):
+    def __init__(self, device_uri: str, auth: Auth, name: str, device_type: str, haid: str, brand: str, vib: str, enumber: str, directory: str):
         self.idos1_baselevel = 0
         self.idos1_active = False
         self.idos2_baselevel = 0
@@ -568,7 +568,7 @@ class Washer(FinishInAppliance):
         self.prewash = False
         self.rinse_plus1 = False
         self.speed_perfect = False
-        super().__init__(device_uri, auth, name, device_type, haid, brand, vib, enumber)
+        super().__init__(device_uri, auth, name, device_type, haid, brand, vib, enumber, directory)
 
     @property
     def spin_speed(self) -> str:
@@ -647,12 +647,12 @@ class Dryer(FinishInAppliance):
 
     DeviceType = 'dryer'
 
-    def __init__(self, device_uri: str, auth: Auth, name: str, device_type: str, haid: str, brand: str, vib: str, enumber: str):
+    def __init__(self, device_uri: str, auth: Auth, name: str, device_type: str, haid: str, brand: str, vib: str, enumber: str, directory: str):
         self.program_gentle = False
         self.__program_drying_target = ""
         self.__program_drying_target_adjustment = ""
         self.__program_wrinkle_guard = ""
-        super().__init__(device_uri, auth, name, device_type, haid, brand, vib, enumber)
+        super().__init__(device_uri, auth, name, device_type, haid, brand, vib, enumber, directory)
 
     @property
     def program_wrinkle_guard(self) -> str:

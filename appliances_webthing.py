@@ -621,9 +621,9 @@ class WasherThing(ApplianceThing):
         self.program_duration.notify_of_external_update(washer.program_duration_hours)
 
 
-def run_server( description: str, port: int, refresh_token: str, client_secret: str):
+def run_server(description: str, port: int, refresh_token: str, client_secret: str, directory: str):
     homeappliances = []
-    for appliance in HomeConnect(refresh_token, client_secret).appliances:
+    for appliance in HomeConnect(refresh_token, client_secret, directory).appliances:
         if appliance.device_type.lower() == Dishwasher.DeviceType:
             homeappliances.append(DishwasherThing(description, appliance).activate())
         elif appliance.device_type.lower() == Washer.DeviceType:
@@ -647,7 +647,7 @@ if __name__ == '__main__':
     logging.basicConfig(format='%(asctime)s %(name)-20s: %(levelname)-8s %(message)s', level=logging.INFO, datefmt='%Y-%m-%d %H:%M:%S')
     logging.getLogger('tornado.access').setLevel(logging.ERROR)
     logging.getLogger('urllib3.connectionpool').setLevel(logging.WARNING)
-    run_server("description", int(sys.argv[1]), sys.argv[2], sys.argv[3])
+    run_server("description", int(sys.argv[1]), sys.argv[2], sys.argv[3], sys.argv[4])
 
 
 

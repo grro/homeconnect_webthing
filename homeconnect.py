@@ -10,13 +10,13 @@ from utils import is_success
 
 
 
-def create_appliance(uri: str, auth: Auth, name: str, device_type: str, haid: str, brand: str, vib: str, enumber: str) -> Optional[Appliance]:
+def create_appliance(uri: str, auth: Auth, name: str, device_type: str, haid: str, brand: str, vib: str, enumber: str, directory: str) -> Optional[Appliance]:
     if device_type.lower() == Dishwasher.DeviceType:
-        return Dishwasher(uri, auth, name, device_type, haid, brand, vib, enumber)
+        return Dishwasher(uri, auth, name, device_type, haid, brand, vib, enumber, directory)
     if device_type.lower() == Washer.DeviceType:
-        return Washer(uri, auth, name, device_type, haid, brand, vib, enumber)
+        return Washer(uri, auth, name, device_type, haid, brand, vib, enumber, directory)
     elif device_type.lower() == Dryer.DeviceType:
-        return Dryer(uri, auth, name, device_type, haid, brand, vib, enumber)
+        return Dryer(uri, auth, name, device_type, haid, brand, vib, enumber, directory)
     else:
         logging.warning("unknown device type " + device_type + " ignoring it")
         return None
@@ -27,7 +27,8 @@ class HomeConnect:
 
     API_URI = "https://api.home-connect.com/api"
 
-    def __init__(self, refresh_token: str, client_secret: str):
+    def __init__(self, refresh_token: str, client_secret: str, directory: str):
+        self.directory = directory
         self.notify_listeners: List[EventListener] = list()
         self.auth = Auth(refresh_token, client_secret)
         self.appliances: List[Appliance] = []
@@ -49,7 +50,8 @@ class HomeConnect:
                                               homeappliances['haId'],
                                               homeappliances['brand'],
                                               homeappliances['vib'],
-                                              homeappliances['enumber'])
+                                              homeappliances['enumber'],
+                                              self.directory)
                 if appliances is None:
                     logging.warning("unsupported device type: " + homeappliances['type'] + " (" + homeappliances['haId'] + "). Ignoring it")
                 else:
