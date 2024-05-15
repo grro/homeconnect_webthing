@@ -345,6 +345,18 @@ class DryerThing(ApplianceThing):
                          'readOnly': False,
                  }))
 
+        self.estimated_total_program_time = Value(dryer.estimated_total_program_time)
+        self.add_property(
+            Property(self,
+                     'estimated_total_program_time',
+                     self.estimated_total_program_time,
+                     metadata={
+                         'title': 'Estimated total program time',
+                         "type": "string",
+                         'description': 'The estimated total program time in sec',
+                         'readOnly': True,
+                     }))
+
 
         self.program_gentle = Value(dryer.program_gentle)
         self.add_property(
@@ -409,6 +421,7 @@ class DryerThing(ApplianceThing):
     def _on_value_changed(self, dryer: Dryer):
         super()._on_value_changed(dryer)
         self.start_date_utc.notify_of_external_update(dryer.read_start_date_utc())
+        self.estimated_total_program_time.notify_of_external_update(dryer.estimated_total_program_time)
         self.child_lock.notify_of_external_update(dryer.child_lock)
         self.program_gentle.notify_of_external_update(dryer.program_gentle)
         self.program_wrinkle_guard.notify_of_external_update(dryer.program_wrinkle_guard)
@@ -432,6 +445,19 @@ class WasherThing(ApplianceThing):
                          'description': 'The start date',
                          'readOnly': False,
                      }))
+
+        self.estimated_total_program_time = Value(washer.estimated_total_program_time)
+        self.add_property(
+            Property(self,
+                     'estimated_total_program_time',
+                     self.estimated_total_program_time,
+                     metadata={
+                         'title': 'Estimated total program time',
+                         "type": "string",
+                         'description': 'The estimated total program time in sec',
+                         'readOnly': True,
+                     }))
+
 
         self.idos1_active = Value(washer.idos1_active)
         self.add_property(
@@ -605,6 +631,7 @@ class WasherThing(ApplianceThing):
     def _on_value_changed(self, washer: Washer):
         super()._on_value_changed(washer)
         self.start_date_utc.notify_of_external_update(washer.read_start_date_utc())
+        self.estimated_total_program_time.notify_of_external_update(washer.estimated_total_program_time)
         self.spin_speed.notify_of_external_update(washer.spin_speed)
         self.idos1_baselevel.notify_of_external_update(washer.idos1_baselevel)
         self.idos2_baselevel.notify_of_external_update(washer.idos2_baselevel)

@@ -428,6 +428,7 @@ class FinishInAppliance(Appliance):
         self._program_finish_in_relative_sec = 0
         self.__program_finish_in_relative_max_sec = 86000
         self.__program_finish_in_relative_stepsize_sec = 60
+        self.estimated_total_program_time = ""
         self._durations = SimpleDB(haid + '_durations', directory=directory)
         super().__init__(device_uri, auth, name, device_type, haid, brand, vib, enumber, directory)
 
@@ -453,6 +454,11 @@ class FinishInAppliance(Appliance):
             if program_selected is not None and len(program_selected) > 0:
                 self._program_selected = program_selected
                 logging.info(self.name + " field 'selected program': " + str(self._program_selected) + " (" + source + ")")
+
+        elif key == 'BSH.Common.Option.EstimatedTotalProgramTime':
+            self.estimated_total_program_time = change.get('value', 0)
+            logging.info(self.name + " field 'estimated total program time': " + str(self.estimated_total_program_time) + " (" + source + ")")
+
         else:
             # unhandled
             return super()._on_value_changed(key, change, source)
