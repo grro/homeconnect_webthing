@@ -329,6 +329,7 @@ class Dishwasher(Appliance):
                 constraints = change['constraints']
                 if 'max' in constraints.keys():
                     self.__program_start_in_relative_sec_max = constraints['max']
+                    self.__program_start_in_relative_sec_max = constraints['max']
                     logging.info(self.name + " field 'start in relative max value': " + str(self.__program_start_in_relative_sec_max) + " (" + source + ")")
         elif key == 'Dishcare.Dishwasher.Option.ExtraDry':
             self.program_extra_try = change.get('value', False)
@@ -427,7 +428,7 @@ class FinishInAppliance(Appliance):
         self._program_finish_in_relative_sec = 0
         self.__program_finish_in_relative_max_sec = 86000
         self.__program_finish_in_relative_stepsize_sec = 60
-        self._durations = SimpleDB(haid + '_durations')
+        self._durations = SimpleDB(haid + '_durations', directory=directory)
         super().__init__(device_uri, auth, name, device_type, haid, brand, vib, enumber, directory)
 
     def _on_value_changed(self, key: str, change: Dict[str, Any], source: str) -> bool:
