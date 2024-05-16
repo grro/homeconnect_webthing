@@ -102,11 +102,15 @@ class Appliance(EventListener):
 
     @property
     def state(self) -> str:
+        return self.__state
+
+    @property
+    def __state(self) -> str:
         return self.__db.get("state", self.STATE_READY)
 
     @state.setter
     def state(self, new_state: str):
-        if self.state != new_state:
+        if self.__state != new_state:
             logging.info(self.name + " new state: " + new_state + " (previous: " + self.state + ")")
             self.__db.put("state", new_state)
 
@@ -517,14 +521,13 @@ class FinishInAppliance(Appliance):
                 logging.info("remaining_secs_to_finish is < 0. set it with 0")
                 remaining_secs_to_finish = 0
             if remaining_secs_to_finish > 0 and self.__program_finish_in_relative_stepsize_sec > 0:
-                remaining_secs_to_finish = int(remaining_secs_to_finish / self.__program_finish_in_relative_stepsize_sec) * self.__program_finish_in_relative_max_sec
+                remaining_secs_to_finish = int(remaining_secs_to_finish / self.__program_finish_in_relative_stepsize_sec) * self.__program_finish_in_relative_stepsize_sec
 
             if remaining_secs_to_finish >= self.__program_finish_in_relative_max_sec:
                 logging.warning("remaining seconds to finished " + print_duration(remaining_secs_to_finish) + " is larger than max supported value of " + print_duration(self.__program_finish_in_relative_max_sec) + ". Ignore setting start date")
             else:
                 remaining_secs_to_wait = remaining_secs_to_finish - program_duration_sec
-
-                finish_in_relative = remaining_secs_to_wait # bug fix FinishInRelative seems to be interpreted as start in relativ?!
+                finish_in_relative = remaining_secs_to_finish
                 if finish_in_relative < 60:
                     logging.info("finish_in_relative " + str(finish_in_relative) + " is < 60 sec. using finish_in_relative=60")
                     finish_in_relative = 60
