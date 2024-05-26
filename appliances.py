@@ -529,8 +529,11 @@ class FinishInAppliance(Appliance):
                 remaining_secs_to_wait = remaining_secs_to_finish - program_duration_sec
                 finish_in_relative = remaining_secs_to_finish
                 if finish_in_relative < 60:
-                    logging.info("finish_in_relative " + str(finish_in_relative) + " is < 60 sec. using finish_in_relative=60")
-                    finish_in_relative = 60
+                    logging.info("finish_in_relative " + str(finish_in_relative) + " is < 60 sec. using finish_in_relative=1*60*60")
+                    finish_in_relative = 1*60*60
+                if finish_in_relative > 4*60*60:
+                    logging.info("finish_in_relative " + str(finish_in_relative) + " is > 4 hours. using finish_in_relative=4*60*60")
+                    finish_in_relative = 4*60*60
                 try:
                     data = {
                         "data": {
