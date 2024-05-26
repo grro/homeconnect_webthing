@@ -514,7 +514,15 @@ class FinishInAppliance(Appliance):
         # when startable
         if self.state == self.STATE_STARTABLE:
             program_duration_sec = self.__program_duration_sec()
-            logging.info("program duration " + print_duration(program_duration_sec))
+
+            if program_duration_sec < (1*60*60):
+                logging.info("short program duration " + print_duration(program_duration_sec) + " using 1 hour")
+                program_duration_sec = 1*60*60
+            elif program_duration_sec > (3.5*60*60):
+                logging.info("long program duration " + print_duration(program_duration_sec) + " using 3.5 hours")
+                program_duration_sec = 3.5*60*60
+            else:
+                logging.info("program duration " + print_duration(program_duration_sec))
 
             remaining_secs_to_finish = int((start_date_utc - datetime.now(tz=timezone.utc)).total_seconds()) + program_duration_sec
             if remaining_secs_to_finish < 0:
@@ -529,11 +537,8 @@ class FinishInAppliance(Appliance):
                 remaining_secs_to_wait = remaining_secs_to_finish - program_duration_sec
                 finish_in_relative = remaining_secs_to_finish
                 if finish_in_relative < 60:
-                    logging.info("finish_in_relative " + str(finish_in_relative) + " is < 60 sec. using finish_in_relative=1*60*60")
-                    finish_in_relative = 1*60*60
-                if finish_in_relative > 4*60*60:
-                    logging.info("finish_in_relative " + str(finish_in_relative) + " is > 4 hours. using finish_in_relative=4*60*60")
-                    finish_in_relative = 4*60*60
+                    logging.info("finish_in_relative " + str(finish_in_relative) + " is < 60 sec. using finish_in_relative=60")
+                    finish_in_relative = 60
                 try:
                     data = {
                         "data": {
